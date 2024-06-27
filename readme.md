@@ -21,8 +21,11 @@ Backups are stored in the directory specified in the `mdl_bu.conf` file. Ensure 
    eg.
 
 -domain_dir
+
 |-- moodledata
+
 |-- *mdl_backup*
+
 \-- public_html
 
 ## Quickstart
