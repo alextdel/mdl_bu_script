@@ -29,7 +29,8 @@ Follow these steps to use the backup script:
 
 1. **Create the mdl_backup and mdl_bu_files directories**
 
-   Script will attempt to make backup file directories, but better to set this up first.
+   Script will attempt to make backup files directory, but better to set this up first.
+   Note: script and mdl_bu_files need to be in parallel directories as the git requires an empty directory for cloning the local repo.
    ```
    mkdir -p /path/to/web-dir-parent/mdl_backup/mdl_bu_files
    cd /path/to/web-dir-parent/mdl_backup
@@ -39,7 +40,7 @@ Follow these steps to use the backup script:
 
    While in */path/to/web-dir-parent/mdl_backup*
    ``` 
-   git clone <repository-url> . //note the dot, otherwise the clone process will make a sub-dir
+   git clone <repository-url> // a sub-dir for the git repo is made eg. 'mdl_bu_script'
    cd <repository-directory>
    ```
 
