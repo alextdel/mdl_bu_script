@@ -1,6 +1,13 @@
 # Moodle Backup Script
 
 This script automates the backup of a Moodle instance, including its database and `moodledata` directory. Configuration is managed through separate configuration files.
+When the script is run successfully the output will be
+```
+-rw-r--r-- 1 user user 4231656 Jun 28 09:27 moodledata_backup_YYYYMMDDtttt.tar.gz
+-rw-r--r-- 1 user user 1669354 Jun 28 09:27 moodle_db_backup_YYYYMMDDtttt.sql
+-rw-r--r-- 1 user user       0 Jun 28 09:27 moodle_db_backup_YYYYMMDDtttt.sql.err
+```
+A successful database dump will give a .sql.err file with zero size/contents.
 
 ## Configuration Files
 
@@ -8,7 +15,7 @@ This script automates the backup of a Moodle instance, including its database an
 This is the template configuration file. Copy this file to `mdl_bu.conf` and update it with instance-specific values.
 
 ### `mdl_bu.conf`
-This file contains instance-specific configuration values. It is created by copying `mdl_bu.conf.template` and updating the paths and other settings.
+This file contains instance-specific configuration values. It is created by copying `mdl_bu.conf.template` and updating the paths and other settings. This file is not part of the git repo.
 
 ## Main Script File: `mdl_bu.sh`
 The main script reads configuration variables from `mdl_bu.conf` and performs the backup operations.
