@@ -39,7 +39,7 @@ Follow these steps to use the backup script:
 
    While in */path/to/web-dir-parent/mdl_backup*
    ``` 
-   git clone <repository-url> .
+   git clone <repository-url> . //note the dot, otherwise the clone process will make a sub-dir
    cd <repository-directory>
    ```
 
