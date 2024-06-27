@@ -8,16 +8,7 @@ if [ ! -f "$CONFIG_FILE" ]; then
     exit 1
 fi
 
-# The 'source' command reads and executes the content of the specified file
-# It makes the variables and functions defined in mdl_bu.conf available in this script
-# shellcheck source=/dev/null
 source "$CONFIG_FILE"
-
-# Check if NUM_BACKUPS_TO_KEEP is set
-if [ -z "$NUM_BACKUPS_TO_KEEP" ]; then
-    echo "Error: NUM_BACKUPS_TO_KEEP is not set in $CONFIG_FILE. Please set it and try again."
-    exit 1
-fi
 
 # Function to check if a variable is set
 check_variable() {
@@ -42,7 +33,7 @@ if [ ! -r "$MDL_CONFIG_PATH" ]; then
 fi
 
 # Check if the config.php file contains the required configuration variables
-required_vars=("\$CFG->dbname" "\$CFG->dbuser" "\$CFG->dbpass" "\$CFG->dbhost" "\$CFG->dataroot")
+required_vars=('$CFG->dbname' '$CFG->dbuser' '$CFG->dbpass' '$CFG->dbhost' '$CFG->dataroot')
 for var in "${required_vars[@]}"; do
     if ! grep -q "$var" "$MDL_CONFIG_PATH"; then
         echo "Error: $var not found in $MDL_CONFIG_PATH. Please ensure the config.php file is correctly configured."
@@ -51,13 +42,13 @@ for var in "${required_vars[@]}"; do
 done
 
 # Extract database credentials from the config.php file
-DB_NAME=$(grep "\$CFG->dbname" "$MDL_CONFIG_PATH" | awk -F"'" '{print $2}')
-DB_USER=$(grep "\$CFG->dbuser" "$MDL_CONFIG_PATH" | awk -F"'" '{print $2}')
-DB_PASS=$(grep "\$CFG->dbpass" "$MDL_CONFIG_PATH" | awk -F"'" '{print $2}')
-DB_HOST=$(grep "\$CFG->dbhost" "$MDL_CONFIG_PATH" | awk -F"'" '{print $2}')
+DB_NAME=$(grep '$CFG->dbname' "$MDL_CONFIG_PATH" | awk -F"'" '{print $2}')
+DB_USER=$(grep '$CFG->dbuser' "$MDL_CONFIG_PATH" | awk -F"'" '{print $2}')
+DB_PASS=$(grep '$CFG->dbpass' "$MDL_CONFIG_PATH" | awk -F"'" '{print $2}')
+DB_HOST=$(grep '$CFG->dbhost' "$MDL_CONFIG_PATH" | awk -F"'" '{print $2}')
 
 # Extract the moodledata path from the config.php file
-MOODLE_DATA=$(grep "\$CFG->dataroot" "$MDL_CONFIG_PATH" | awk -F"'" '{print $2}')
+MOODLE_DATA=$(grep '$CFG->dataroot' "$MDL_CONFIG_PATH" | awk -F"'" '{print $2}')
 
 # Check if the variables are set
 check_variable "DB_NAME" "$DB_NAME"
@@ -74,13 +65,16 @@ DATA_BACKUP_FILE="$BACKUP_DIR/moodledata_backup_$(date +\%Y\%m\%d\%H\%M\%S).tar.
 mkdir -p "$BACKUP_DIR"
 
 # Check if the backup directory was created successfully
-if ! mkdir -p "$BACKUP_DIR"; then
+if [ $? -ne 0 ]; then
     echo "Error: Failed to create backup directory $BACKUP_DIR."
     exit 1
 fi
 
 # Perform the database backup using mysqldump
-if mysqldump -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" > "$DB_BACKUP_FILE"; then
+mysqldump -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" > "$DB_BACKUP_FILE"
+
+# Check if the database backup was successful
+if [ $? -eq 0 ]; then
     echo "Database backup successful: $DB_BACKUP_FILE"
 else
     echo "Database backup failed"
@@ -121,16 +115,10 @@ verify_backup "$DATA_BACKUP_FILE"
 retain_last_three_backups() {
     local backup_dir="$1"
     local num_backups_to_keep="$2"
-    local backups=()
-
-    # Using mapfile to read file names into an array
-    mapfile -t backups < <(ls -t "$backup_dir"/moodle_db_backup_* "$backup_dir"/moodledata_backup_* 2>/dev/null)
-    local num_files=${#backups[@]}
-
+    local num_files
+    num_files=$(ls -t "$backup_dir" | grep -E 'moodle_db_backup_|moodledata_backup_' | wc -l)
     if [ "$num_files" -gt "$num_backups_to_keep" ]; then
-        for ((i=num_backups_to_keep; i<num_files; i++)); do
-            rm -- "${backups[i]}"
-        done
+        ls -t "$backup_dir" | grep -E 'moodle_db_backup_|moodledata_backup_' | tail -n +$(($num_backups_to_keep + 1)) | xargs -I {} rm -- "$backup_dir"/{}
     fi
 }
 
