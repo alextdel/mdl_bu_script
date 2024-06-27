@@ -1,24 +1,23 @@
 #!/bin/bash
 
-# Configuration variables (Update these paths before running the script)
+# Load configuration variables from mdl_bu.conf
+CONFIG_FILE='mdl_bu.conf'
 
-# Path to the Moodle config.php file
-MDL_CONFIG_PATH='/path/to/moodle/config.php'
+if [ ! -f "$CONFIG_FILE" ]; then
+    echo "Error: Configuration file $CONFIG_FILE not found. Please create it based on mdl_bu.conf.template."
+    exit 1
+fi
 
-# Path to the backup directory
-BACKUP_DIR='/path/to/backup'
-
-# Number of backups to retain
-NUM_BACKUPS_TO_KEEP=3
-
-# End of configuration variables
+# The 'source' command reads and executes the content of the specified file
+# It makes the variables and functions defined in mdl_bu.conf available in this script
+source "$CONFIG_FILE"
 
 # Function to check if a variable is set
 check_variable() {
     local var_name="$1"
     local var_value="$2"
     if [ -z "$var_value" ]; then
-        echo "Error: $var_name is not set. Please check the $MDL_CONFIG_PATH file."
+        echo "Error: $var_name is not set. Please check the $CONFIG_FILE file."
         exit 1
     fi
 }

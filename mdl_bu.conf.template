@@ -1,0 +1,10 @@
+# mdl_bu.conf.template
+
+# Path to the Moodle config.php file
+MDL_CONFIG_PATH='/path/to/moodle/config.php'
+
+# Path to the backup directory
+BACKUP_DIR='/path/to/backup'
+
+# Number of backups to retain
+NUM_BACKUPS_TO_KEEP=3
