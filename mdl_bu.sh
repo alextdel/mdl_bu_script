@@ -80,13 +80,16 @@ if ! mkdir -p "$BACKUP_DIR"; then
 fi
 
 # Perform the database backup using mysqldump
-if mysqldump -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" > "$DB_BACKUP_FILE"; then
+if mysqldump -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" > "$DB_BACKUP_FILE" 2> "$DB_BACKUP_FILE.err"; then
     echo "Database backup successful: $DB_BACKUP_FILE"
 else
     echo "Database backup failed"
-    if grep -q "Access denied for user" <<< "$(tail -n 1 "$DB_BACKUP_FILE")"; then
+    if grep -q "Access denied for user" "$DB_BACKUP_FILE.err"; then
         echo "Error: Access denied for user '$DB_USER' to database '$DB_NAME'."
         echo "Please ensure the MySQL user has the necessary permissions, especially LOCK TABLES, and try again."
+    else
+        echo "Error message from mysqldump:"
+        tail -n 1 "$DB_BACKUP_FILE.err"
     fi
     exit 1
 fi
