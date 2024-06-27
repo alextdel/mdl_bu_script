@@ -28,6 +28,7 @@ Backups are stored in the directory specified in the `mdl_bu.conf` file. Ensure 
 Follow these steps to use the backup script:
 
 1. **Create the mdl_backup and mdl_bu_files directories**
+
    Script will attempt to make backup file directories, but better to set this up first.
    ```
    mkdir -p /path/to/web-dir-parent/mdl_backup/mdl_bu_files
@@ -35,6 +36,7 @@ Follow these steps to use the backup script:
    ```
 
 2. **Clone the repository:**
+
    While in */path/to/web-dir-parent/mdl_backup*
    ``` 
    git clone <repository-url> .
