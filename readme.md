@@ -18,10 +18,11 @@ Backups are stored in the directory specified in the `mdl_bu.conf` file. Ensure 
 - location of backup directory:
    - Don't put the backup directory inside the web folder (public_html or equivalent)
    - Make a directory (and set in the mdl_bu.conf file) in the same domain folder as the web site directory. Often this will be the same place as the moodledata folder 
-   eg. ---- domain_directory
-         |-- moodledata
-         |-- *mdl_backup*
-         \-- public_html
+   eg.
+-domain_dir
+|-- moodledata
+|-- *mdl_backup*
+\-- public_html
 
 ## Quickstart
 
