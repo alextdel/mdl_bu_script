@@ -14,42 +14,57 @@ This file contains instance-specific configuration values. It is created by copy
 The main script reads configuration variables from `mdl_bu.conf` and performs the backup operations.
 
 ## Backup Storage
-Backups are stored in the directory specified in the `mdl_bu.conf` file. Ensure that this directory exists and has the appropriate permissions before running the script.
+Backups are stored in the directory specified in the `mdl_bu.conf` file. Ensure that this directory exists and has the appropriate permissions before running the script. 
+- location of backup directory:
+   - Don't put the backup directory inside the web folder (public_html or equivalent)
+   - Make a directory (and set in the mdl_bu.conf file) in the same domain folder as the web site directory. Often this will be the same place as the moodledata folder 
+   eg. ---- domain_directory
+         |-- moodledata
+         |-- *mdl_backup*
+         \-- public_html
 
 ## Quickstart
 
 Follow these steps to use the backup script:
 
-1. **Clone the repository:**
-   ```bash
-   git clone <repository-url>
+1. **Create the mdl_backup and mdl_bu_files directories**
+   Script will attempt to make backup file directories, but better to set this up first.
+   ```
+   mkdir -p /path/to/web-dir-parent/mdl_backup/mdl_bu_files
+   cd /path/to/web-dir-parent/mdl_backup
+   ```
+
+2. **Clone the repository:**
+   While in */path/to/web-dir-parent/mdl_backup*
+   ``` 
+   git clone <repository-url> .
    cd <repository-directory>
    ```
 
 2. **Copy the template configuration file:**
-   ```bash
+   ```
    cp mdl_bu.conf.template mdl_bu.conf
    ```
 
 3. **Edit `mdl_bu.conf` with your instance-specific values:**
-   ```bash
+   ```
    nano mdl_bu.conf
    # Update the paths and settings as needed
    ```
 
 4. **Ensure the backup directory exists and has the correct permissions:**
-   ```bash
+   ```
    mkdir -p /path/to/your/backup
    chmod 755 /path/to/your/backup
    ```
 
 5. **Make the script file executable:**
-   ```bash
+   ```
    chmod +x mdl_bu.sh
    ```
 
 6. **Run the backup script:**
-   ```bash
+   ```
    ./mdl_bu.sh
    ```
 
