@@ -124,24 +124,36 @@ verify_backup "$DB_BACKUP_FILE"
 # Verify that the moodledata backup file is non-empty
 verify_backup "$DATA_BACKUP_FILE"
 
-# Function to retain only the last three backups
+# Function to retain only the last three backups of each type
 retain_last_three_backups() {
     local backup_dir="$1"
     local num_backups_to_keep="$2"
-    local backups=()
+    local backups_db=()
+    local backups_data=()
 
     # Using mapfile to read file names into an array
-    mapfile -t backups < <(ls -t "$backup_dir"/moodle_db_backup_* "$backup_dir"/moodledata_backup_* 2>/dev/null)
-    local num_files=${#backups[@]}
+    mapfile -t backups_db < <(ls -t "$backup_dir"/moodle_db_backup_*.sql 2>/dev/null)
+    mapfile -t backups_data < <(ls -t "$backup_dir"/moodledata_backup_*.tar.gz 2>/dev/null)
 
-    if [ "$num_files" -gt "$num_backups_to_keep" ]; then
-        for ((i=num_backups_to_keep; i<num_files; i++)); do
-            rm -- "${backups[i]}"
+    local num_files_db=${#backups_db[@]}
+    local num_files_data=${#backups_data[@]}
+
+    # Remove old database backups if more than the specified number
+    if [ "$num_files_db" -gt "$num_backups_to_keep" ]; then
+        for ((i=num_backups_to_keep; i<num_files_db; i++)); do
+            rm -- "${backups_db[i]}"
+        done
+    fi
+
+    # Remove old moodledata backups if more than the specified number
+    if [ "$num_files_data" -gt "$num_backups_to_keep" ]; then
+        for ((i=num_backups_to_keep; i<num_files_data; i++)); do
+            rm -- "${backups_data[i]}"
         done
     fi
 }
 
-# Retain only the last three backups
+# Retain only the last three backups of each type
 retain_last_three_backups "$BACKUP_DIR" "$NUM_BACKUPS_TO_KEEP"
 
 echo "Backup process completed successfully."
