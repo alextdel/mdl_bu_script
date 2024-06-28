@@ -82,6 +82,10 @@ fi
 # Perform the database backup using mysqldump
 if mysqldump -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" > "$DB_BACKUP_FILE" 2> "$DB_BACKUP_FILE.err"; then
     echo "Database backup successful: $DB_BACKUP_FILE"
+    # Check if .err file is empty and delete it if so
+    if [ ! -s "$DB_BACKUP_FILE.err" ]; then
+        rm "$DB_BACKUP_FILE.err"
+    fi
 else
     echo "Database backup failed"
     if grep -q "Access denied for user" "$DB_BACKUP_FILE.err"; then
