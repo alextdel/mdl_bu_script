@@ -31,6 +31,9 @@ DB_USER=$(grep "\$CFG->dbuser" "$MDL_CONFIG_PATH" | awk -F"'" '{print $2}')
 DB_PASS=$(grep "\$CFG->dbpass" "$MDL_CONFIG_PATH" | awk -F"'" '{print $2}')
 MOODLE_DATA=$(grep "\$CFG->dataroot" "$MDL_CONFIG_PATH" | awk -F"'" '{print $2}')
 
+# Global log file
+LOG_FILE="$BACKUP_DIR/${SERVICE_NAME}_backup_log_$(date +'%Y%m%d%H%M%S').txt"
+
 # Function to check if a variable is set
 check_variable() {
     local var_name="$1"
@@ -44,9 +47,7 @@ check_variable() {
 # Function to log messages to a specified log file
 log_message() {
     local log_msg="$1"
-    local log_file
-    log_file="$BACKUP_DIR/${SERVICE_NAME}_backup_log_$(date +'%Y%m%d%H%M%S').txt"
-    echo "$(date +'%Y-%m-%d %H:%M:%S') - $log_msg" >> "$log_file"
+    echo "$(date +'%Y-%m-%d %H:%M:%S') - $log_msg" >> "$LOG_FILE"
     
     # Check if script is running interactively
     if [ -t 1 ]; then
@@ -161,7 +162,7 @@ else
         log_message "Please ensure the MySQL user has the necessary permissions, especially LOCK TABLES, and try again."
     else
         log_message "Error message from mysqldump:"
-        tail -n 1 "$DB_BACKUP_FILE.err" >> "$BACKUP_DIR/${SERVICE_NAME}_backup_log_$(date +\%Y\%m\%d\%H\%M\%S).txt"
+        tail -n 1 "$DB_BACKUP_FILE.err" >> "$LOG_FILE"
     fi
     exit 1
 fi
