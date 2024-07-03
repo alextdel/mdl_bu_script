@@ -19,6 +19,18 @@ if [ -z "$NUM_BACKUPS_TO_KEEP" ]; then
     exit 1
 fi
 
+# Read Moodle config.php file and extract database credentials and Moodle data directory
+if [ ! -f "$MDL_CONFIG_PATH" ]; then
+    echo "Error: Moodle configuration file $MDL_CONFIG_PATH not found."
+    exit 1
+fi
+
+DB_HOST=$(grep "\$CFG->dbhost" "$MDL_CONFIG_PATH" | awk -F"'" '{print $4}')
+DB_NAME=$(grep "\$CFG->dbname" "$MDL_CONFIG_PATH" | awk -F"'" '{print $4}')
+DB_USER=$(grep "\$CFG->dbuser" "$MDL_CONFIG_PATH" | awk -F"'" '{print $4}')
+DB_PASS=$(grep "\$CFG->dbpass" "$MDL_CONFIG_PATH" | awk -F"'" '{print $4}')
+MOODLE_DATA=$(grep "\$CFG->dataroot" "$MDL_CONFIG_PATH" | awk -F"'" '{print $4}')
+
 # Function to check if a variable is set
 check_variable() {
     local var_name="$1"
