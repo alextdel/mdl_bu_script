@@ -6,7 +6,10 @@ MDL_CONFIG_PATH='/path/to/moodle/config.php'
 # Path to the backup files directory
 BACKUP_DIR='/path/to/web-dir-parent/mdl_backup/mdl_bu_files'
 
-# Number of backups to retain
+# Path to store backups after creation (optional, if different from BACKUP_DIR)
+BACKUP_STORE='/path/to/backup_store'
+
+# Number of backups to retain in each directory
 NUM_BACKUPS_TO_KEEP=3
 
 # Name of the service being backed up
