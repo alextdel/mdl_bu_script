@@ -65,10 +65,11 @@ check_variable "DB_USER" "$DB_USER"
 check_variable "DB_PASS" "$DB_PASS"
 check_variable "DB_HOST" "$DB_HOST"
 check_variable "MOODLE_DATA" "$MOODLE_DATA"
+check_variable "SERVICE_NAME" "$SERVICE_NAME"
 
 # Define backup file name and path
-DB_BACKUP_FILE="$BACKUP_DIR/moodle_db_backup_$(date +\%Y\%m\%d\%H\%M\%S).sql"
-DATA_BACKUP_FILE="$BACKUP_DIR/moodledata_backup_$(date +\%Y\%m\%d\%H\%M\%S).tar.gz"
+DB_BACKUP_FILE="$BACKUP_DIR/${SERVICE_NAME}_db_backup_$(date +\%Y\%m\%d\%H\%M\%S).sql"
+DATA_BACKUP_FILE="$BACKUP_DIR/${SERVICE_NAME}_moodledata_backup_$(date +\%Y\%m\%d\%H\%M\%S).tar.gz"
 
 # Create the backup directory if it doesn't exist
 mkdir -p "$BACKUP_DIR"
@@ -99,10 +100,7 @@ else
 fi
 
 # Perform the moodledata backup using tar and gzip
-tar -czf "$DATA_BACKUP_FILE" -C "$(dirname "$MOODLE_DATA")" "$(basename "$MOODLE_DATA")"
-
-# Check if the moodledata backup was successful
-if [ $? -eq 0 ]; then
+if tar -czf "$DATA_BACKUP_FILE" -C "$(dirname "$MOODLE_DATA")" "$(basename "$MOODLE_DATA")"; then
     echo "Moodledata backup successful: $DATA_BACKUP_FILE"
 else
     echo "Moodledata backup failed"
@@ -132,8 +130,8 @@ retain_last_three_backups() {
     local backups_data=()
 
     # Using mapfile to read file names into an array
-    mapfile -t backups_db < <(ls -t "$backup_dir"/moodle_db_backup_*.sql 2>/dev/null)
-    mapfile -t backups_data < <(ls -t "$backup_dir"/moodledata_backup_*.tar.gz 2>/dev/null)
+    mapfile -t backups_db < <(ls -t "$backup_dir"/"${SERVICE_NAME}"_db_backup_*.sql 2>/dev/null)
+    mapfile -t backups_data < <(ls -t "$backup_dir"/"${SERVICE_NAME}"_moodledata_backup_*.tar.gz 2>/dev/null)
 
     local num_files_db=${#backups_db[@]}
     local num_files_data=${#backups_data[@]}
