@@ -96,28 +96,67 @@ retain_backups() {
 }
 
 # Function to copy backups to BACKUP_STORE and verify the transfer
-copy_and_verify_backups() {
+# copy_and_verify_backups() {
+#     local source_dir="$1"
+#     local target_dir="$2"
+#     local num_backups_to_keep="$3"
+
+#     mkdir -p "$target_dir"
+
+#     # Copy database backups
+#     for backup_file in "$source_dir/${SERVICE_NAME}_db_backup_"*.sql; do
+#         if [ -f "$backup_file" ]; then
+#             cp "$backup_file" "$target_dir"
+#             verify_backup "$target_dir/$(basename "$backup_file")"
+#             log_message "Copied database backup: $(basename "$backup_file") to $target_dir"
+#         fi
+#     done
+
+#     # Copy moodledata backups
+#     for backup_file in "$source_dir/${SERVICE_NAME}_moodledata_backup_"*.tar.gz; do
+#         if [ -f "$backup_file" ]; then
+#             cp "$backup_file" "$target_dir"
+#             verify_backup "$target_dir/$(basename "$backup_file")"
+#             log_message "Copied moodledata backup: $(basename "$backup_file") to $target_dir"
+#         fi
+#     done
+
+#     # Retain only the specified number of backups in the target directory
+#     retain_backups "$target_dir" "$num_backups_to_keep"
+# }
+
+# Function to copy newly created backups to BACKUP_STORE without overwriting existing files
+copy_new_backups() {
     local source_dir="$1"
     local target_dir="$2"
     local num_backups_to_keep="$3"
 
     mkdir -p "$target_dir"
 
+    # Function to copy files if they don't already exist in the target directory
+    copy_file_if_new() {
+        local file="$1"
+        local target="$2"
+
+        # Check if the file already exists in the target directory
+        if [ ! -f "$target" ]; then
+            cp "$file" "$target_dir"
+            verify_backup "$target_dir/$(basename "$file")"
+            log_message "Copied backup: $(basename "$file") to $target_dir"
+        fi
+    }
+
     # Copy database backups
     for backup_file in "$source_dir/${SERVICE_NAME}_db_backup_"*.sql; do
         if [ -f "$backup_file" ]; then
-            cp "$backup_file" "$target_dir"
-            verify_backup "$target_dir/$(basename "$backup_file")"
-            log_message "Copied database backup: $(basename "$backup_file") to $target_dir"
+            copy_file_if_new "$backup_file" "$target_dir/$(basename "$backup_file")"
         fi
     done
 
     # Copy moodledata backups
     for backup_file in "$source_dir/${SERVICE_NAME}_moodledata_backup_"*.tar.gz; do
         if [ -f "$backup_file" ]; then
-            cp "$backup_file" "$target_dir"
-            verify_backup "$target_dir/$(basename "$backup_file")"
-            log_message "Copied moodledata backup: $(basename "$backup_file") to $target_dir"
+            copy_file_if_new "$backup_file" "$target_dir/$(basename "$backup_file")"
         fi
     done
 
@@ -181,8 +220,11 @@ verify_backup "$DB_BACKUP_FILE"
 # Verify that the moodledata backup file is non-empty
 verify_backup "$DATA_BACKUP_FILE"
 
-# Copy backups to BACKUP_STORE and verify the transfer
-copy_and_verify_backups "$BACKUP_DIR" "$BACKUP_STORE" "$NUM_BACKUPS_TO_KEEP"
+# # Copy backups to BACKUP_STORE and verify the transfer
+# copy_and_verify_backups "$BACKUP_DIR" "$BACKUP_STORE" "$NUM_BACKUPS_TO_KEEP"
+
+# Copy newly created backups to BACKUP_STORE and verify the transfer
+copy_new_backups "$BACKUP_DIR" "$BACKUP_STORE" "$NUM_BACKUPS_TO_KEEP"
 
 # Retain only the specified number of backups in the BACKUP_DIR
 retain_backups "$BACKUP_DIR" "$NUM_BACKUPS_TO_KEEP"
