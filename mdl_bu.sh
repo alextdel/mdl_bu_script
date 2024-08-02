@@ -30,6 +30,41 @@ DB_NAME=$(grep "\$CFG->dbname" "$MDL_CONFIG_PATH" | awk -F"'" '{print $2}')
 DB_USER=$(grep "\$CFG->dbuser" "$MDL_CONFIG_PATH" | awk -F"'" '{print $2}')
 DB_PASS=$(grep "\$CFG->dbpass" "$MDL_CONFIG_PATH" | awk -F"'" '{print $2}')
 MOODLE_DATA=$(grep "\$CFG->dataroot" "$MDL_CONFIG_PATH" | awk -F"'" '{print $2}')
+WEB_ROOT_DIR=$(grep "\$CFG->wwwroot" "$MDL_CONFIG_PATH" | awk -F"'" '{print $2}')
+
+# Define the path to the maintenance CLI script using the web root directory
+MAINTENANCE_SCRIPT="${WEB_ROOT_DIR}/admin/cli/maintenance.php"
+
+# Function to enable maintenance mode
+enable_maintenance_mode() {
+    echo "Enabling maintenance mode..."
+    php "$MAINTENANCE_SCRIPT" --enable
+    if [ $? -ne 0 ]; then
+        echo "Error: Failed to enable maintenance mode."
+        exit 1
+    fi
+}
+
+# Function to disable maintenance mode
+disable_maintenance_mode() {
+    echo "Disabling maintenance mode..."
+    php "$MAINTENANCE_SCRIPT" --disable
+    if [ $? -ne 0 ]; then
+        echo "Error: Failed to disable maintenance mode."
+        exit 1
+    fi
+}
+
+# Function to handle script exit
+cleanup() {
+    disable_maintenance_mode
+}
+
+# Trap any exit signal and call cleanup
+trap cleanup EXIT
+
+# Enable maintenance mode
+enable_maintenance_mode
 
 # Global log file
 LOG_FILE="$BACKUP_DIR/${SERVICE_NAME}_backup_log_$(date +'%Y%m%d%H%M%S').txt"
@@ -47,6 +82,16 @@ check_variable() {
 # Function to log messages to a specified log file
 log_message() {
     local log_msg="$1"
+    
+    # Check if LOG_FILE is writable
+    if [ ! -w "$LOG_FILE" ]; then
+        # If LOG_FILE is not writable, output message to stderr
+        echo "Error: Log file $LOG_FILE is not writable. Outputting message to stderr."
+        echo "$(date +'%Y-%m-%d %H:%M:%S') - $log_msg" >&2
+        return
+    fi
+
+    # Append message to LOG_FILE
     echo "$(date +'%Y-%m-%d %H:%M:%S') - $log_msg" >> "$LOG_FILE"
     
     # Check if script is running interactively
@@ -54,6 +99,7 @@ log_message() {
         echo "$log_msg"
     fi
 }
+
 
 # Function to verify that backup files are non-empty
 verify_backup() {
@@ -94,36 +140,6 @@ retain_backups() {
         done
     fi
 }
-
-# Function to copy backups to BACKUP_STORE and verify the transfer
-# copy_and_verify_backups() {
-#     local source_dir="$1"
-#     local target_dir="$2"
-#     local num_backups_to_keep="$3"
-
-#     mkdir -p "$target_dir"
-
-#     # Copy database backups
-#     for backup_file in "$source_dir/${SERVICE_NAME}_db_backup_"*.sql; do
-#         if [ -f "$backup_file" ]; then
-#             cp "$backup_file" "$target_dir"
-#             verify_backup "$target_dir/$(basename "$backup_file")"
-#             log_message "Copied database backup: $(basename "$backup_file") to $target_dir"
-#         fi
-#     done
-
-#     # Copy moodledata backups
-#     for backup_file in "$source_dir/${SERVICE_NAME}_moodledata_backup_"*.tar.gz; do
-#         if [ -f "$backup_file" ]; then
-#             cp "$backup_file" "$target_dir"
-#             verify_backup "$target_dir/$(basename "$backup_file")"
-#             log_message "Copied moodledata backup: $(basename "$backup_file") to $target_dir"
-#         fi
-#     done
-
-#     # Retain only the specified number of backups in the target directory
-#     retain_backups "$target_dir" "$num_backups_to_keep"
-# }
 
 # Function to copy newly created backups to BACKUP_STORE without overwriting existing files
 copy_new_backups() {
@@ -220,9 +236,6 @@ verify_backup "$DB_BACKUP_FILE"
 # Verify that the moodledata backup file is non-empty
 verify_backup "$DATA_BACKUP_FILE"
 
-# # Copy backups to BACKUP_STORE and verify the transfer
-# copy_and_verify_backups "$BACKUP_DIR" "$BACKUP_STORE" "$NUM_BACKUPS_TO_KEEP"
-
 # Copy newly created backups to BACKUP_STORE and verify the transfer
 copy_new_backups "$BACKUP_DIR" "$BACKUP_STORE" "$NUM_BACKUPS_TO_KEEP"
 
@@ -230,3 +243,5 @@ copy_new_backups "$BACKUP_DIR" "$BACKUP_STORE" "$NUM_BACKUPS_TO_KEEP"
 retain_backups "$BACKUP_DIR" "$NUM_BACKUPS_TO_KEEP"
 
 log_message "Backup process completed successfully."
+
+disable_maintenance_mode
