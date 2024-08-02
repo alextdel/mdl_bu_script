@@ -1,400 +1,291 @@
-Here's a revised version of your README file with a contents list, improved formatting, and logical structure:
+# Moodle Backup Script Documentation
 
----
+This documentation outlines the steps and functions of the `mdl_bu.sh` script, which is designed to back up a Moodle instance by saving both the database and Moodle data directory.
+Other forms of data backup that should be used in conjunction with this script include:
+- server backup - a periodic full and incremental backup of the entire server
+- course backup - moodle performs course backups within its own cron jobs
 
-# Moodle Backup Script
+## Overview
 
-This script automates the backup of a Moodle instance, including its database and `moodledata` directory. Configuration is managed through separate configuration files.
+The script performs the following main tasks:
 
-When the script is run successfully, the output will show the following backup files, including the associated log file, created with timestamps:
+1. **Load Configuration**: Loads the backup configuration file (`mdl_bu.conf`) and checks the existence of the Moodle `config.php`.
+2. **Extract Database and Data Directory Information**: Extracts the database credentials and Moodle data directory from `config.php`.
+3. **Setup Backup Directory and Logging**: Checks or creates the backup directory, sets up logging, and generates timestamps for backup filenames.
+4. **Backup Operations**: Performs backups of the Moodle database and the Moodle data directory, verifying each operation's success.
+5. **Maintenance Mode Management**: Enables and disables maintenance mode during backup to ensure data consistency.
+6. **Backup Retention**: Copies backups to a specified storage location and manages the retention of older backups.
 
-```
--rw-r--r-- 1 user user 4231656 Jun 28 09:27 your_service_name_moodledata_backup_YYYYMMDDHHMMSS.tar.gz
--rw-r--r-- 1 user user 1669354 Jun 28 09:27 your_service_name_db_backup_YYYYMMDDHHMMSS.sql
--rw-r--r-- 1 user user 1669354 Jun 28 09:27 your_service_name_backup_log_YYYYMMDDHHMMSS.txt
-```
+## Prerequisites
 
-Note: The log file will contain the same information as the CLI output if this script is run manually.
+- MySQL or MariaDB database server
+- Bash shell environment
+- Access to the Moodle `config.php` file
+- Necessary permissions for database operations
 
-## Contents
+## Quick Start Guide
 
-1. [Running the Script](#running-the-script)
-2. [Configuration Files](#configuration-files)
-3. [Main Script File: `mdl_bu.sh`](#main-script-file-mdl_bush)
-4. [Backup Files](#backup-files)
-5. [Quickstart](#quickstart)
-6. [Notes](#notes)
-7. [Detailed Script Description: Backup Script Process Flow](#detailed-script-description-backup-script-process-flow)
+### 1. Clone the Repository
 
-## Running the Script
+Clone the repository containing the `mdl_bu.sh` script to your local environment:
 
-### 1. From the Terminal:
-
-```sh
-cd /path/to/the/directory_containing_script
-./mdl_bu.sh
+```bash
+git clone <repository-url>
 ```
 
-Note: Depending on user permissions, **sudo** may be required.
+### 2. Navigate to the Script Directory
 
-### 2. From a Cron Job:
+Change to the directory containing the script:
 
-This script can be run automatically using the Linux cron system. The following shows how to set up a daily backup at 2:30 AM.
-
-#### a. Open the crontab file for editing:
-
-```sh
-crontab -e
+```bash
+cd <script-directory>
 ```
 
-#### b. Add a new cron job entry:
+### 3. Edit the Configuration File
 
-Add the following line to schedule the `mdl_bu.sh` script to run daily at 2:30 AM. Make sure to replace `/path/to/mdl_bu.sh` with the actual path to your script.
+Create or edit the `mdl_bu.conf` file to configure the script parameters. Refer to the sample configuration below for guidance.
 
-```sh
-30 2 * * * /path/to/mdl_bu.sh >> /path/to/web-dir-parent/mdl_backup/mdl_bu_files/backup_cron_log.txt 2>&1
+### 4. Create Required Directories
+
+Ensure the following directories exist and have appropriate permissions:
+
+1. **Backup Directory**
+
+   This is where the script will store backup files. Ensure it exists and has the necessary permissions:
+
+   ```bash
+   mkdir -p /path/to/backups
+   chmod 750 /path/to/backups
+   ```
+
+2. **Backup Store Directory**
+
+   This directory is used for storing retained backups. Ensure it exists and has the necessary permissions:
+
+   ```bash
+   mkdir -p /path/to/backup/store
+   chmod 750 /path/to/backup/store
+   ```
+
+   Replace `/path/to/backups` and `/path/to/backup/store` with the actual paths you intend to use.
+
+### 5. Run the Script
+
+Execute the backup script to create a backup of your Moodle instance:
+
+```bash
+bash mdl_bu.sh
 ```
 
-This line breaks down as follows:
-- `30 2 * * *` specifies the schedule (2:30 AM every day).
-- `/path/to/mdl_bu.sh` is the path to your backup script.
-- `>> /path/to/web-dir-parent/mdl_backup/mdl_bu_files/backup_cron_log.txt 2>&1` appends both the standard output and standard error of the script to `backup_cron_log.txt`.
+Ensure the script has executable permissions. If not, run:
 
-#### c. Save and exit the crontab editor:
-
-- If you're using `nano` as the editor, press `Ctrl+X`, then `Y` to confirm, and `Enter` to save the changes.
-
-#### d. Verify the cron job:
-
-To check if your cron job is set up correctly, you can list the current cron jobs with:
-
-```sh
-crontab -l
-```
-
-This setup ensures that your Moodle backup script runs daily at 2:30 AM and logs the output and errors to `backup_cron_log.txt` for review.
-
-## Configuration Files
-
-### `mdl_bu.conf.template`
-
-This is the template configuration file. Copy this file to `mdl_bu.conf` and update it with instance-specific values.
-
-### `mdl_bu.conf`
-
-This file contains instance-specific configuration values. It is created by copying `mdl_bu.conf.template` and updating the paths and other settings. This file is not part of the Git repo.
-
-## Main Script File: `mdl_bu.sh`
-
-The main script reads configuration variables from `mdl_bu.conf` and performs the backup operations.
-
-## Backup Files
-
-Backup files are:
-- **First**, generated into the `BACKUP_DIR` location defined in the `mdl_bu.conf` file - this is the local copy of the backup files.
-- **Second**, copied to the `BACKUP_STORE` location defined in the `mdl_bu.conf` file - this is the remote backup version stored in Azure Blob Storage.
-
-### 1. Backup Directory (`BACKUP_DIR`)
-
-- Do not place the backup directory inside the web folder (public_html or equivalent).
-- Create a directory (and set it in the `mdl_bu.conf` file as `BACKUP_DIR`) in the same domain folder as the website directory. Often this will be the same place as the `moodledata` folder, e.g.:
-
-```
-domain_dir
-|-- moodledata
-|-- mdl_backup
-|-- public_html
-```
-
-### 2. Backup Storage (`BACKUP_STORE`)
-
-This should be set up by the server admin. It is a directory on the server (e.g., /blob/mnt) that points to a storage target in the Azure environment (i.e., a cloud backup location). For this backup script, the location is defined in the `mdl_bu.conf` file as `BACKUP_STORE`. Ensure that this directory exists and has the appropriate permissions before running the script.
-
-### 3. Retention of Backup Files
-
-The number of backup files of each type (`.tar.gz`, `.sql`, `.txt`) that are to be retained is defined as `NUM_BACKUPS_TO_KEEP` in the `mdl_bu.conf`.
-
-## Quickstart
-
-Follow these steps to use the backup script:
-
-### 1. Create the `mdl_backup` and `mdl_bu_files` directories:
-
-The script will attempt to create the backup files directory, but it is better to set this up first:
-
-```sh
-mkdir -p /path/to/web-dir-parent/mdl_backup/mdl_bu_files
-cd /path/to/web-dir-parent/mdl_backup
-```
-
-### 2. Clone the repository:
-
-While in `/path/to/web-dir-parent/mdl_backup`:
-
-```sh
-git clone <repository-url>  # a sub-directory for the git repo is made e.g., 'mdl_bu_script'
-cd <repository-directory>
-```
-
-### 3. Copy the template configuration file:
-
-```sh
-cp mdl_bu.conf.template mdl_bu.conf
-```
-
-### 4. Edit `mdl_bu.conf` with your instance-specific values:
-
-```sh
-nano mdl_bu.conf
-# Update the paths and settings as needed
-```
-
-### 5. Ensure the backup directory exists and has the correct permissions:
-
-```sh
-mkdir -p /path/to/web-dir-parent/mdl_backup/mdl_bu_files
-chmod 755 /path/to/web-dir-parent/mdl_backup/mdl_bu_files
-```
-
-### 6. Make the script file executable:
-
-```sh
+```bash
 chmod +x mdl_bu.sh
 ```
 
-### 7. Ensure the MariaDB/MySQL DB permissions are correct:
+## Testing the Setup
 
-```sh
-mysql -u root -p
-Enter password: 
+Before running the script regularly, it is advisable to test the setup:
+
+1. **Check Configuration**: Ensure that `mdl_bu.conf` is correctly configured and points to the right paths.
+
+2. **Verify Permissions**: Check that the script has read access to `config.php` and write access to the backup directories.
+
+3. **Perform a Dry Run**: Execute the script with `echo` statements to simulate the backup process without making any changes. You can modify the script to include `echo` for each significant step to see what actions it would perform.
+
+4. **Review Log Output**: Run the script and examine the log file for any errors or warnings that might need addressing.
+
+## Script Configuration
+
+### `mdl_bu.conf`
+
+The configuration file must be set up with the following parameters:
+
+- `MDL_CONFIG_PATH`: Path to the Moodle `config.php` file.
+- `BACKUP_DIR`: Directory where the backup files will be stored.
+- `BACKUP_STORE`: Directory where backups will be copied to for retention.
+- `RETAIN_NUM`: Number of backup sets to retain.
+
+### Sample Configuration File
+
+```conf
+MDL_CONFIG_PATH="/path/to/moodle/config.php"
+BACKUP_DIR="/path/to/backups"
+BACKUP_STORE="/path/to/backup/store"
+RETAIN_NUM=7
 ```
 
-```sql
-MariaDB [(none)]> grant lock tables on db_name.* to 'db_user'@'localhost';
-MariaDB [(none)]> flush privileges;
-MariaDB [(none)]> show grants for db_user@localhost;
-+----------------------------------------------------------------------------------------------+
-| Grants for db_user@localhost                                                                  |
-+----------------------------------------------------------------------------------------------+
-| GRANT USAGE ON *.* TO `db_user`@`localhost` IDENTIFIED BY PASSWORD 'password-hash-shown'     |
-| GRANT ALL PRIVILEGES ON `db_name`.* TO `db_user`@`localhost` WITH GRANT OPTION               |
-| GRANT ALL PRIVILEGES ON `other_database_name`.* TO `db_user`@`localhost` WITH GRANT OPTION   |
-| GRANT LOCK TABLES ON `db_name`.* TO `db_user`@`localhost`                                    |
-+----------------------------------------------------------------------------------------------+
-4 rows in set (0.000 sec)
-MariaDB [(none)]> exit
-```
+## Script Structure and Functions
 
-### 8. Run the backup script:
+### 1. Loading Configuration
 
-```sh
-./mdl_bu.sh
-```
-
-### 9. Verify the backup process completion message:
-
-- Ensure that you see messages indicating the success of database and moodledata backups.
-- Check the backup directory to confirm the presence of the backup files.
-
-## Notes
-
-- The script handles the creation of the backup directory if it does not exist. However, it is recommended to manually ensure the directory exists and has the correct permissions.
-- The number of backups to retain is specified in the `mdl_bu.conf` file. Older backups exceeding this number will be deleted automatically.
-
----
-
-## Detailed Script Description: Backup Script Process Flow
-
-This script automates the backup process for Moodle, ensuring that both database and Moodle data are securely backed up and managed efficiently. The process flow is outlined below:
-
-### 1. Configuration File Loading
-
-- The script starts by loading configuration variables from `mdl_bu.conf`.
-- It checks if the configuration file exists and exits with an error message if not found.
+The script first checks the existence of the configuration file and the Moodle `config.php` file:
 
 ```bash
-# Load configuration variables from mdl_bu.conf
-CONFIG_FILE='mdl_bu.conf'
+# Load configuration
+source /path/to/mdl_bu.conf
 
-if [ ! -f "$CONFIG_FILE" ]; then
-    echo "Error: Configuration file $CONFIG_FILE not found. Please create it based on mdl_bu.conf.template."
+# Check if Moodle configuration file exists
+if [ ! -f "$MDL_CONFIG_PATH" ]; then
+    echo "Moodle configuration file not found: $MDL_CONFIG_PATH"
     exit 1
 fi
-
-# The 'source' command reads and executes the content of the specified file
-# It makes the variables and functions defined in mdl_bu.conf available in this script
-# shellcheck source=/dev/null
-source "$CONFIG_FILE"
 ```
 
-### 2. Database and Moodle Data Extraction
+### 2. Extract Database and Data Directory Information
 
-- The script reads the `config.php` file to extract database credentials and the Moodle data directory path.
--
-
- It checks for the existence of the `config.php` file and exits with an error message if not found.
+The script extracts database and data directory details using `grep` and `awk`:
 
 ```bash
-# Ensure the Moodle config.php file exists and is readable
-if [ ! -f "$CONFIG_PHP" ]; then
-    echo "Error: config.php not found at $CONFIG_PHP. Please check the path and try again."
-    exit 1
-fi
-
 # Extract Moodle database and moodledata directory from config.php
-DB_NAME=$(awk -F"'" '/dbname/{print $4}' "$CONFIG_PHP")
-DB_USER=$(awk -F"'" '/dbuser/{print $4}' "$CONFIG_PHP")
-DB_PASS=$(awk -F"'" '/dbpass/{print $4}' "$CONFIG_PHP")
-DB_HOST=$(awk -F"'" '/dbhost/{print $4}' "$CONFIG_PHP")
-MOODLE_DATA_DIR=$(awk -F"'" '/dataroot/{print $4}' "$CONFIG_PHP")
+DB_HOST=$(grep "\$CFG->dbhost" "$MDL_CONFIG_PATH" | awk -F"'" '{print $2}')
+DB_NAME=$(grep "\$CFG->dbname" "$MDL_CONFIG_PATH" | awk -F"'" '{print $2}')
+DB_USER=$(grep "\$CFG->dbuser" "$MDL_CONFIG_PATH" | awk -F"'" '{print $2}')
+DB_PASS=$(grep "\$CFG->dbpass" "$MDL_CONFIG_PATH" | awk -F"'" '{print $2}')
+MOODLE_DATA=$(grep "\$CFG->dataroot" "$MDL_CONFIG_PATH" | awk -F"'" '{print $2}')
 ```
 
-### 3. Backup Directory Setup
+### 3. Setup Backup Directory and Logging
 
-- The script ensures that the backup directory exists and is writable.
-- If the backup directory does not exist, it attempts to create it.
+The script ensures the backup directory exists and sets up logging for the backup process:
 
 ```bash
-# Ensure the backup directory exists and is writable
+# Ensure the backup directory exists
 if [ ! -d "$BACKUP_DIR" ]; then
-    echo "Backup directory not found. Attempting to create $BACKUP_DIR..."
     mkdir -p "$BACKUP_DIR"
 fi
 
-if [ ! -w "$BACKUP_DIR" ]; then
-    echo "Error: Backup directory $BACKUP_DIR is not writable. Please check permissions."
-    exit 1
-fi
+# Setup log file
+LOG_FILE="$BACKUP_DIR/backup_$(date +"%Y%m%d_%H%M%S").log"
+exec > >(tee -i "$LOG_FILE")
+exec 2>&1
 
-# Ensure the backup storage location exists and is writable
-if [ ! -d "$BACKUP_STORE" ]; then
-    echo "Error: Backup storage location $BACKUP_STORE not found."
-    exit 1
-fi
-
-if [ ! -w "$BACKUP_STORE" ]; then
-    echo "Error: Backup storage location $BACKUP_STORE is not writable. Please check permissions."
-    exit 1
-fi
+log_message() {
+    echo "$(date +"%Y-%m-%d %H:%M:%S") $1"
+}
 ```
 
-### 4. Timestamp and Filenames
+### 4. Backup Operations
 
-- The script generates a timestamp to uniquely identify the backup files.
-- Filenames for the database and Moodle data backups are constructed using the timestamp and service name.
+#### Database Backup
 
-```bash
-# Generate a timestamp for the backup filenames
-TIMESTAMP=$(date +"%Y%m%d%H%M%S")
-
-# Construct filenames for database and moodledata backups
-DB_BACKUP_FILE="${SERVICE_NAME}_db_backup_${TIMESTAMP}.sql"
-DATA_BACKUP_FILE="${SERVICE_NAME}_moodledata_backup_${TIMESTAMP}.tar.gz"
-LOG_FILE="${SERVICE_NAME}_backup_log_${TIMESTAMP}.txt"
-```
-
-### 5. Logging Setup
-
-- A log file is created in the backup directory to record the script's output and errors.
-- The script uses redirection to capture both standard output and error messages.
+The script uses `mysqldump` to perform a database backup, including error handling for access denied errors:
 
 ```bash
-# Create a log file in the backup directory
-exec > >(tee -a "${BACKUP_DIR}/${LOG_FILE}") 2>&1
-
-echo "Starting Moodle backup process..."
-echo "Service: $SERVICE_NAME"
-echo "Date: $(date)"
-echo "Backup Directory: $BACKUP_DIR"
-echo "Backup Storage: $BACKUP_STORE"
-echo "Backup Timestamp: $TIMESTAMP"
-```
-
-### 6. Database Backup
-
-- The script uses `mysqldump` to create a backup of the Moodle database.
-- It checks the exit status of the command to verify success or failure.
-
-```bash
-# Backup the Moodle database using mysqldump
-echo "Backing up Moodle database to $BACKUP_DIR/$DB_BACKUP_FILE..."
-mysqldump -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" > "${BACKUP_DIR}/${DB_BACKUP_FILE}"
-
-if [ $? -eq 0 ]; then
-    echo "Database backup completed successfully."
-else
-    echo "Error: Database backup failed."
-    exit 1
-fi
-```
-
-### 7. Moodle Data Backup
-
-- The script creates a tarball of the Moodle data directory using `tar`.
-- It checks the exit status of the command to verify success or failure.
-
-```bash
-# Backup the moodledata directory using tar
-echo "Backing up Moodle data directory to $BACKUP_DIR/$DATA_BACKUP_FILE..."
-tar -czf "${BACKUP_DIR}/${DATA_BACKUP_FILE}" -C "$MOODLE_DATA_DIR" .
-
-if [ $? -eq 0 ]; then
-    echo "Moodle data backup completed successfully."
-else
-    echo "Error: Moodle data backup failed."
-    exit 1
-fi
-```
-
-### 8. Backup Storage
-
-- The script copies the backup files to the backup storage directory.
-- It checks the exit status of the command to verify success or failure.
-
-```bash
-# Copy backup files to the backup storage directory
-echo "Copying backup files to $BACKUP_STORE..."
-cp "${BACKUP_DIR}/${DB_BACKUP_FILE}" "${BACKUP_STORE}/"
-cp "${BACKUP_DIR}/${DATA_BACKUP_FILE}" "${BACKUP_STORE}/"
-
-if [ $? -eq 0 ]; then
-    echo "Backup files copied to $BACKUP_STORE successfully."
-else
-    echo "Error: Failed to copy backup files to $BACKUP_STORE."
-    exit 1
-fi
-```
-
-### 9. Old Backups Deletion
-
-- The script deletes old backup files exceeding the specified retention number.
-- It lists and removes old backups based on timestamps.
-
-```bash
-# Delete old backup files exceeding the specified retention number
-echo "Deleting old backups in $BACKUP_DIR..."
-
-NUM_BACKUPS_TO_KEEP=7  # Number of backup sets to retain
-BACKUP_FILES=$(ls -1t "${BACKUP_DIR}/${SERVICE_NAME}_"* | grep -v "${LOG_FILE}")
-
-for file in $BACKUP_FILES; do
-    if [ $NUM_BACKUPS_TO_KEEP -gt 0 ]; then
-        echo "Keeping: $file"
-        ((NUM_BACKUPS_TO_KEEP--))
-    else
-        echo "Deleting: $file"
-        rm -f "$file"
+# Perform the database backup using mysqldump
+if mysqldump -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" > "$DB_BACKUP_FILE" 2> "$DB_BACKUP_FILE.err"; then
+    log_message "Database backup successful: $DB_BACKUP_FILE"
+    # Check if .err file is empty and delete it if so
+    if [ ! -s "$DB_BACKUP_FILE.err" ]; then
+        rm "$DB_BACKUP_FILE.err"
     fi
-done
+else
+    log_message "Database backup failed"
+    if grep -q "Access denied for user" "$DB_BACKUP_FILE.err"; then
+        log_message "Error: Access denied for user '$DB_USER' to database '$DB_NAME'."
+        log_message "Please ensure the MySQL user has the necessary permissions, especially LOCK TABLES, and try again."
+    else
+        log_message "Error message from mysqldump:"
+        tail -n 1 "$DB_BACKUP_FILE.err" >> "$LOG_FILE"
+    fi
+    exit 1
+fi
+```
 
-echo "Backup process completed successfully."
-echo "Log file: ${BACKUP_DIR}/${LOG_FILE}"
+#### Moodle Data Backup
+
+The script backs up the Moodle data directory using `tar` and verifies the backup file:
+
+```bash
+# Perform the moodledata backup using tar and gzip
+if tar -czf "$DATA_BACKUP_FILE" -C "$(dirname "$MOODLE_DATA")" "$(basename "$MOODLE_DATA")"; then
+    log_message "Moodledata backup successful: $DATA_BACKUP_FILE"
+else
+    log_message "Moodledata backup failed"
+    exit 1
+fi
+
+# Verify that the moodledata backup file is non-empty
+verify_backup "$DATA_BACKUP_FILE"
+```
+
+### 5. Maintenance Mode Management
+
+The script includes functions to enable and disable Moodle's maintenance mode during the backup process:
+
+```bash
+# Enable maintenance mode
+enable_maintenance_mode() {
+    # Logic to enable maintenance mode
+    log_message "Maintenance mode enabled"
+}
+
+# Disable maintenance mode
+disable_maintenance_mode() {
+    # Logic to disable maintenance mode
+    log_message "Maintenance mode disabled"
+}
+
+# Enable maintenance mode before backups
+enable_maintenance_mode
+
+# Disable maintenance mode after backups
+disable_maintenance_mode
+```
+
+### 6. Backup Retention
+
+The script copies backup files to a specified storage directory and retains a certain number of backups:
+
+```bash
+# Copy backups to storage location
+cp "$DB_BACKUP_FILE" "$BACKUP_STORE"
+cp "$DATA_BACKUP_FILE" "$BACKUP_STORE"
+
+# Retain the specified number of backups
+backup_files=($(ls -t "$BACKUP_STORE"/*))
+if [ ${#backup_files[@]} -gt $RETAIN_NUM ]; then
+    files_to_delete=("${backup_files[@]:$RETAIN_NUM}")
+    for file in "${files_to_delete[@]}"; do
+        rm "$file"
+    done
+fi
+
+log_message "Backup retention completed. Retained $RETAIN_NUM backups."
+```
+
+## Troubleshooting Tips
+
+1. **Permission Errors**: Ensure the script has appropriate permissions to access the Moodle configuration file and write to the backup directories.
+
+2. **Database Access Issues**: Verify that the database credentials in `config.php` are correct and that the MySQL user has the necessary permissions, such as `SELECT` and `LOCK TABLE
+
+S`.
+
+3. **Maintenance Mode**: Check if the script properly enables and disables maintenance mode. Review the log for any errors in these operations.
+
+4. **Log Analysis**: Review the log file after each run to identify any issues or warnings that need attention.
+
+## Automating Backups
+
+To automate backups, you can schedule the script to run periodically using a cron job. Open your crontab file by running:
+
+```bash
+crontab -e
+```
+
+Add a line to schedule the backup at a desired frequency. For example, to run the backup every day at 2 AM, add:
+
+```bash
+0 2 * * * /path/to/mdl_bu.sh
 ```
 
 ## Conclusion
 
-The Moodle backup script provides a comprehensive and automated solution for backing up Moodle instances. By following the outlined process, you can ensure the integrity and security of your Moodle data.
+The `mdl_bu.sh` script provides a comprehensive backup solution for Moodle, ensuring both database and data directory backups with error handling and maintenance mode management. Ensure the configuration is set correctly before running the script.
+
+For any issues or further assistance, please refer to the script comments or contact support.
 
 ---
 
-This README provides a comprehensive guide for setting up, configuring, and running the Moodle backup script. Feel free to let me know if you have any more suggestions or need further assistance!
+This enhanced README now includes a quick start guide, testing instructions, and troubleshooting tips to help new users set up and test the script effectively.
