@@ -101,14 +101,17 @@ Before running the script regularly, it is advisable to test the setup:
 
 The configuration file must be set up with the following parameters:
 
+- `MDL_WEB_DIR`: Path to the web directory for Moodle.
 - `MDL_CONFIG_PATH`: Path to the Moodle `config.php` file.
 - `BACKUP_DIR`: Directory where the backup files will be stored.
 - `BACKUP_STORE`: Directory where backups will be copied to for retention.
 - `RETAIN_NUM`: Number of backup sets to retain.
 
+
 ### Sample Configuration File
 
 ```conf
+MDL_WEB_DIR="/path/to/moodle/web-files"
 MDL_CONFIG_PATH="/path/to/moodle/config.php"
 BACKUP_DIR="/path/to/backups"
 BACKUP_STORE="/path/to/backup/store"
@@ -143,6 +146,7 @@ DB_NAME=$(grep "\$CFG->dbname" "$MDL_CONFIG_PATH" | awk -F"'" '{print $2}')
 DB_USER=$(grep "\$CFG->dbuser" "$MDL_CONFIG_PATH" | awk -F"'" '{print $2}')
 DB_PASS=$(grep "\$CFG->dbpass" "$MDL_CONFIG_PATH" | awk -F"'" '{print $2}')
 MOODLE_DATA=$(grep "\$CFG->dataroot" "$MDL_CONFIG_PATH" | awk -F"'" '{print $2}')
+
 ```
 
 ### 3. Setup Backup Directory and Logging

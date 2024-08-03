@@ -1,5 +1,8 @@
 # mdl_bu.conf
 
+#Path to Moodle web directory
+MDL_WEB_DIR='/path/to/moodle/web_files'
+
 # Path to the Moodle config.php file
 MDL_CONFIG_PATH='/path/to/moodle/config.php'
 

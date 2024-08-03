@@ -30,10 +30,9 @@ DB_NAME=$(grep "\$CFG->dbname" "$MDL_CONFIG_PATH" | awk -F"'" '{print $2}')
 DB_USER=$(grep "\$CFG->dbuser" "$MDL_CONFIG_PATH" | awk -F"'" '{print $2}')
 DB_PASS=$(grep "\$CFG->dbpass" "$MDL_CONFIG_PATH" | awk -F"'" '{print $2}')
 MOODLE_DATA=$(grep "\$CFG->dataroot" "$MDL_CONFIG_PATH" | awk -F"'" '{print $2}')
-WEB_ROOT_DIR=$(grep "\$CFG->wwwroot" "$MDL_CONFIG_PATH" | awk -F"'" '{print $2}')
 
 # Define the path to the maintenance CLI script using the web root directory
-MAINTENANCE_SCRIPT="${WEB_ROOT_DIR}/admin/cli/maintenance.php"
+MAINTENANCE_SCRIPT="${MDL_WEB_DIR}/admin/cli/maintenance.php"
 
 # Function to enable maintenance mode
 enable_maintenance_mode() {
