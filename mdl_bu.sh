@@ -103,10 +103,8 @@ log_message() {
     # Append message to LOG_FILE
     echo "$(date +'%Y-%m-%d %H:%M:%S') - $log_msg" >> "$LOG_FILE"
     
-    # Check if script is running interactively
-    if [ -t 1 ]; then
-        echo "$log_msg"
-    fi
+    # Send log message to terminal command line
+    echo "$log_msg"
 }
 
 
@@ -116,8 +114,11 @@ verify_backup() {
     if [ ! -s "$file" ]; then
         log_message "Error: Backup file $file is empty or not created correctly."
         exit 1
+    else
+        log_message "Backup file $file is verified as created correctly."
     fi
 }
+
 
 # Function to retain only the specified number of backups of each type
 retain_backups() {
