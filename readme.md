@@ -162,9 +162,26 @@ LOG_FILE="$BACKUP_DIR/backup_$(date +"%Y%m%d_%H%M%S").log"
 exec > >(tee -i "$LOG_FILE")
 exec 2>&1
 
+Progress and errors are logged and output to the command line.
+
 log_message() {
-    echo "$(date +"%Y-%m-%d %H:%M:%S") $1"
+    local log_msg="$1"
+
+    # Check if LOG_FILE is writable
+    if [ ! -w "$LOG_FILE" ]; then
+        # If LOG_FILE is not writable, output message to stderr
+        echo "Error: Log file $LOG_FILE is not writable. Outputting message to stderr."
+        echo "$(date +'%Y-%m-%d %H:%M:%S') - $log_msg" >&2
+        return
+    fi
+
+    # Append message to LOG_FILE
+    echo "$(date +'%Y-%m-%d %H:%M:%S') - $log_msg" >> "$LOG_FILE"
+
+    # Send log message to command line
+    echo "$log_msg"
 }
+
 ```
 
 ### 4. Backup Operations
