@@ -37,9 +37,8 @@ MAINTENANCE_SCRIPT="${MDL_WEB_DIR}/admin/cli/maintenance.php"
 # Function to enable maintenance mode
 enable_maintenance_mode() {
     echo "Enabling maintenance mode..."
-    php "$MAINTENANCE_SCRIPT" --enable
-    if [ $? -ne 0 ]; then
-        echo "Error: Failed to enable maintenance mode."
+    if ! php "$MAINTENANCE_SCRIPT" --enable; then
+        log_message "Error: failed to enable maintenance mode."
         exit 1
     fi
 }
@@ -47,9 +46,9 @@ enable_maintenance_mode() {
 # Function to disable maintenance mode
 disable_maintenance_mode() {
     echo "Disabling maintenance mode..."
-    php "$MAINTENANCE_SCRIPT" --disable
-    if [ $? -ne 0 ]; then
+    if ! php "$MAINTENANCE_SCRIPT" --disable; then
         echo "Error: Failed to disable maintenance mode."
+        log_message "Error: failed to disable maintenance mode\n- you may need to run this manually from the command line ie. php $MDL_WEB_DIR/admin/cli/maintenance.php --disable"
         exit 1
     fi
 }
@@ -242,5 +241,3 @@ copy_new_backups "$BACKUP_DIR" "$BACKUP_STORE" "$NUM_BACKUPS_TO_KEEP"
 retain_backups "$BACKUP_DIR" "$NUM_BACKUPS_TO_KEEP"
 
 log_message "Backup process completed successfully."
-
-disable_maintenance_mode

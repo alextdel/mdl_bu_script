@@ -1,9 +1,9 @@
 # Moodle Backup Script Documentation
 
-This documentation outlines the steps and functions of the `mdl_bu.sh` script, which is designed to back up a Moodle instance by saving both the database and Moodle data directory.
-Other forms of data backup that should be used in conjunction with this script include:
-- server backup - a periodic full and incremental backup of the entire server
-- course backup - moodle performs course backups within its own cron jobs
+This documentation outlines the steps and functions of the `mdl_bu.sh` script, which is designed to back up a Moodle instance by saving both the database and Moodle data directory. Other forms of data backup that should be used in conjunction with this script include:
+
+- **Server Backup**: A periodic full and incremental backup of the entire server.
+- **Course Backup**: Moodle performs course backups within its own cron jobs.
 
 ## Overview
 
@@ -13,7 +13,7 @@ The script performs the following main tasks:
 2. **Extract Database and Data Directory Information**: Extracts the database credentials and Moodle data directory from `config.php`.
 3. **Setup Backup Directory and Logging**: Checks or creates the backup directory, sets up logging, and generates timestamps for backup filenames.
 4. **Backup Operations**: Performs backups of the Moodle database and the Moodle data directory, verifying each operation's success.
-5. **Maintenance Mode Management**: Enables and disables maintenance mode during backup to ensure data consistency.
+5. **Maintenance Mode Management**: Automatically enables maintenance mode before backup and disables it after the backup to ensure data consistency.
 6. **Backup Retention**: Copies backups to a specified storage location and manages the retention of older backups.
 
 ## Prerequisites
@@ -107,7 +107,6 @@ The configuration file must be set up with the following parameters:
 - `BACKUP_STORE`: Directory where backups will be copied to for retention.
 - `RETAIN_NUM`: Number of backup sets to retain.
 
-
 ### Sample Configuration File
 
 ```conf
@@ -146,7 +145,6 @@ DB_NAME=$(grep "\$CFG->dbname" "$MDL_CONFIG_PATH" | awk -F"'" '{print $2}')
 DB_USER=$(grep "\$CFG->dbuser" "$MDL_CONFIG_PATH" | awk -F"'" '{print $2}')
 DB_PASS=$(grep "\$CFG->dbpass" "$MDL_CONFIG_PATH" | awk -F"'" '{print $2}')
 MOODLE_DATA=$(grep "\$CFG->dataroot" "$MDL_CONFIG_PATH" | awk -F"'" '{print $2}')
-
 ```
 
 ### 3. Setup Backup Directory and Logging
@@ -215,26 +213,38 @@ verify_backup "$DATA_BACKUP_FILE"
 
 ### 5. Maintenance Mode Management
 
-The script includes functions to enable and disable Moodle's maintenance mode during the backup process:
+The script includes functions to enable and disable Moodle's maintenance mode during the backup process. The `trap` command ensures that maintenance mode is always disabled when the script exits, even if an error occurs:
 
 ```bash
-# Enable maintenance mode
+# Function to enable maintenance mode
 enable_maintenance_mode() {
-    # Logic to enable maintenance mode
-    log_message "Maintenance mode enabled"
+    echo "Enabling maintenance mode..."
+    if ! php "$MAINTENANCE_SCRIPT" --enable; then
+        log_message "Error: failed to enable maintenance mode."
+        exit 1
+    fi
 }
 
-# Disable maintenance mode
+# Function to disable maintenance mode
 disable_maintenance_mode() {
-    # Logic to disable maintenance mode
-    log_message "Maintenance mode disabled"
+    echo "Disabling maintenance mode..."
+    if ! php "$MAINTENANCE_SCRIPT" --disable; then
+        echo "Error: Failed to disable maintenance mode."
+        log_message "Error: failed to disable maintenance mode\n- you may need to run this manually from the command line ie. php $MDL_WEB_DIR/admin/cli/maintenance.php --disable"
+        exit 1
+    fi
 }
+
+# Function to handle script exit
+cleanup() {
+    disable_maintenance_mode
+}
+
+# Trap any exit signal and call cleanup
+trap cleanup EXIT
 
 # Enable maintenance mode before backups
 enable_maintenance_mode
-
-# Disable maintenance mode after backups
-disable_maintenance_mode
 ```
 
 ### 6. Backup Retention
@@ -243,8 +253,9 @@ The script copies backup files to a specified storage directory and retains a ce
 
 ```bash
 # Copy backups to storage location
-cp "$DB_BACKUP_FILE" "$BACKUP_STORE"
-cp "$DATA_BACKUP_FILE" "$BACKUP_STORE"
+copy_new_backups "$BACK
+
+UP_STORE"
 
 # Retain the specified number of backups
 backup_files=($(ls -t "$BACKUP_STORE"/*))
@@ -262,9 +273,7 @@ log_message "Backup retention completed. Retained $RETAIN_NUM backups."
 
 1. **Permission Errors**: Ensure the script has appropriate permissions to access the Moodle configuration file and write to the backup directories.
 
-2. **Database Access Issues**: Verify that the database credentials in `config.php` are correct and that the MySQL user has the necessary permissions, such as `SELECT` and `LOCK TABLE
-
-S`.
+2. **Database Access Issues**: Verify that the database credentials in `config.php` are correct and that the MySQL user has the necessary permissions, such as `SELECT` and `LOCK TABLES`.
 
 3. **Maintenance Mode**: Check if the script properly enables and disables maintenance mode. Review the log for any errors in these operations.
 
@@ -289,7 +298,3 @@ Add a line to schedule the backup at a desired frequency. For example, to run th
 The `mdl_bu.sh` script provides a comprehensive backup solution for Moodle, ensuring both database and data directory backups with error handling and maintenance mode management. Ensure the configuration is set correctly before running the script.
 
 For any issues or further assistance, please refer to the script comments or contact support.
-
----
-
-This enhanced README now includes a quick start guide, testing instructions, and troubleshooting tips to help new users set up and test the script effectively.
