@@ -65,7 +65,18 @@ trap cleanup EXIT
 enable_maintenance_mode
 
 # Global log file
+# Set the log file path using the current date and time for uniqueness
 LOG_FILE="$BACKUP_DIR/${SERVICE_NAME}_backup_log_$(date +'%Y%m%d%H%M%S').txt"
+
+# Attempt to create the log file
+if ! touch "$LOG_FILE"; then
+    echo "Error: Unable to create log file at $LOG_FILE"
+    exit 1
+fi
+
+# Redirect stdout and stderr to the log file
+exec > >(tee -i "$LOG_FILE")
+exec 2>&1
 
 # Function to check if a variable is set
 check_variable() {
