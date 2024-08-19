@@ -9,15 +9,59 @@ if [ ! -f "$CONFIG_FILE" ]; then
 fi
 
 # The 'source' command reads and executes the content of the specified file
-# It makes the variables and functions defined in mdl_bu.conf available in this script
-# shellcheck source=/dev/null
 source "$CONFIG_FILE"
 
-# Check if NUM_BACKUPS_TO_KEEP is set
-if [ -z "$NUM_BACKUPS_TO_KEEP" ]; then
-    echo "Error: NUM_BACKUPS_TO_KEEP is not set in $CONFIG_FILE. Please set it and try again."
-    exit 1
-fi
+# Function to check if a variable is set and valid
+check_variable() {
+    local var_name="$1"
+    local var_value="$2"
+    local var_type="$3"
+    local valid_value="$4"
+    
+    if [ -z "$var_value" ]; then
+        echo "Error: $var_name is not set in $CONFIG_FILE. Please set it and try again."
+        exit 1
+    fi
+
+    case "$var_type" in
+        "integer")
+            if ! [[ "$var_value" =~ ^[0-9]+$ ]]; then
+                echo "Error: $var_name must be an integer. Current value: $var_value"
+                exit 1
+            fi
+            ;;
+        "directory")
+            if [ ! -d "$var_value" ]; then
+                echo "Error: $var_name is not a valid directory. Current value: $var_value"
+                exit 1
+            fi
+            ;;
+        "file")
+            if [ ! -f "$var_value" ]; then
+                echo "Error: $var_name is not a valid file. Current value: $var_value"
+                exit 1
+            fi
+            ;;
+        "text")
+            if [ "$var_value" == "$valid_value" ]; then
+                echo "Error: $var_name must not be '$valid_value'. Current value: $var_value"
+                exit 1
+            fi
+            ;;
+        *)
+            echo "Error: Unknown type $var_type for $var_name."
+            exit 1
+            ;;
+    esac
+}
+
+# Check if required variables are set and valid
+check_variable "NUM_BACKUPS_TO_KEEP" "$NUM_BACKUPS_TO_KEEP" "integer"
+check_variable "BACKUP_DIR" "$BACKUP_DIR" "directory"
+check_variable "BACKUP_STORE" "$BACKUP_STORE" "directory"
+check_variable "MDL_CONFIG_PATH" "$MDL_CONFIG_PATH" "file"
+check_variable "MDL_WEB_DIR" "$MDL_WEB_DIR" "directory"
+check_variable "SERVICE_NAME" "$SERVICE_NAME" "text" "your_service_name"
 
 # Read Moodle config.php file and extract database credentials and Moodle data directory
 if [ ! -f "$MDL_CONFIG_PATH" ]; then
@@ -65,7 +109,6 @@ trap cleanup EXIT
 enable_maintenance_mode
 
 # Global log file
-# Set the log file path using the current date and time for uniqueness
 LOG_FILE="$BACKUP_DIR/${SERVICE_NAME}_backup_log_$(date +'%Y%m%d%H%M%S').txt"
 
 # Attempt to create the log file
@@ -78,35 +121,20 @@ fi
 exec > >(tee -i "$LOG_FILE")
 exec 2>&1
 
-# Function to check if a variable is set
-check_variable() {
-    local var_name="$1"
-    local var_value="$2"
-    if [ -z "$var_value" ]; then
-        log_message "Error: $var_name is not set. Please check the $CONFIG_FILE file."
-        exit 1
-    fi
-}
-
 # Function to log messages to a specified log file
 log_message() {
     local log_msg="$1"
     
     # Check if LOG_FILE is writable
     if [ ! -w "$LOG_FILE" ]; then
-        # If LOG_FILE is not writable, output message to stderr
         echo "Error: Log file $LOG_FILE is not writable. Outputting message to stderr."
         echo "$(date +'%Y-%m-%d %H:%M:%S') - $log_msg" >&2
         return
     fi
 
-    # Append message to LOG_FILE
     echo "$(date +'%Y-%m-%d %H:%M:%S') - $log_msg" >> "$LOG_FILE"
-    
-    # Send log message to terminal command line
     echo "$log_msg"
 }
-
 
 # Function to verify that backup files are non-empty
 verify_backup() {
@@ -119,52 +147,17 @@ verify_backup() {
     fi
 }
 
-
-# Function to retain only the specified number of backups of each type
-retain_backups() {
-    local backup_dir="$1"
-    local num_backups_to_keep="$2"
-    local backups_db=()
-    local backups_data=()
-
-    # Using mapfile to read file names into an array
-    mapfile -t backups_db < <(ls -t "$backup_dir"/"${SERVICE_NAME}"_db_backup_*.sql 2>/dev/null)
-    mapfile -t backups_data < <(ls -t "$backup_dir"/"${SERVICE_NAME}"_moodledata_backup_*.tar.gz 2>/dev/null)
-
-    local num_files_db=${#backups_db[@]}
-    local num_files_data=${#backups_data[@]}
-
-    # Remove old database backups if more than the specified number
-    if [ "$num_files_db" -gt "$num_backups_to_keep" ]; then
-        for ((i=num_backups_to_keep; i<num_files_db; i++)); do
-            rm -- "${backups_db[i]}"
-            log_message "Removed old database backup: ${backups_db[i]}"
-        done
-    fi
-
-    # Remove old moodledata backups if more than the specified number
-    if [ "$num_files_data" -gt "$num_backups_to_keep" ]; then
-        for ((i=num_backups_to_keep; i<num_files_data; i++)); do
-            rm -- "${backups_data[i]}"
-            log_message "Removed old moodledata backup: ${backups_data[i]}"
-        done
-    fi
-}
-
 # Function to copy newly created backups to BACKUP_STORE without overwriting existing files
 copy_new_backups() {
     local source_dir="$1"
     local target_dir="$2"
-    local num_backups_to_keep="$3"
 
     mkdir -p "$target_dir"
 
-    # Function to copy files if they don't already exist in the target directory
     copy_file_if_new() {
         local file="$1"
         local target="$2"
 
-        # Check if the file already exists in the target directory
         if [ ! -f "$target" ]; then
             cp "$file" "$target_dir"
             verify_backup "$target_dir/$(basename "$file")"
@@ -185,9 +178,6 @@ copy_new_backups() {
             copy_file_if_new "$backup_file" "$target_dir/$(basename "$backup_file")"
         fi
     done
-
-    # Retain only the specified number of backups in the target directory
-    retain_backups "$target_dir" "$num_backups_to_keep"
 }
 
 # Function to check if BACKUP_STORE is accessible
@@ -216,7 +206,6 @@ DATA_BACKUP_FILE="$BACKUP_DIR/${SERVICE_NAME}_moodledata_backup_$(date +%Y%m%d%H
 # Perform the database backup using mysqldump
 if mysqldump -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" > "$DB_BACKUP_FILE" 2> "$DB_BACKUP_FILE.err"; then
     log_message "Database backup successful: $DB_BACKUP_FILE"
-    # Check if .err file is empty and delete it if so
     if [ ! -s "$DB_BACKUP_FILE.err" ]; then
         rm "$DB_BACKUP_FILE.err"
     fi
@@ -247,9 +236,36 @@ verify_backup "$DB_BACKUP_FILE"
 verify_backup "$DATA_BACKUP_FILE"
 
 # Copy newly created backups to BACKUP_STORE and verify the transfer
-copy_new_backups "$BACKUP_DIR" "$BACKUP_STORE" "$NUM_BACKUPS_TO_KEEP"
+copy_new_backups "$BACKUP_DIR" "$BACKUP_STORE"
 
-# Retain only the specified number of backups in the BACKUP_DIR
-retain_backups "$BACKUP_DIR" "$NUM_BACKUPS_TO_KEEP"
+# Rotate old backups in the BACKUP_STORE, keeping only the latest $NUM_BACKUPS_TO_KEEP backups
+rotate_old_backups() {
+    local backup_dir="$1"
+    local num_to_keep="$2"
+
+    # Find and delete old backups, keeping only the latest $NUM_BACKUPS_TO_KEEP backups
+    for backup_type in db_backup moodledata_backup; do
+        # Find and list backup files, sorting by modification time and excluding the most recent ones
+        local backups
+        backups=$(find "$backup_dir" -maxdepth 1 -name "${SERVICE_NAME}_${backup_type}_*" -print0 | xargs -0 ls -1t | tail -n +$((num_to_keep + 1)))
+
+        if [ -n "$backups" ]; then
+            # Remove old backups
+            echo "$backups" | xargs rm -f
+            log_message "Old backups removed for $backup_type. Retained $num_to_keep backups."
+        fi
+    done
+}
+
+# Rotate old backups in the BACKUP_STORE
+rotate_old_backups "$BACKUP_STORE" "$NUM_BACKUPS_TO_KEEP"
+
+# Clear local backup directory after successful transfer
+if rm -rf "${BACKUP_DIR:?}/*"; then
+    log_message "Local backup directory cleared."
+else
+    log_message "Error: Failed to clear local backup directory."
+    exit 1
+fi
 
 log_message "Backup process completed successfully."
