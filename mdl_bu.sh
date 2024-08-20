@@ -99,13 +99,8 @@ disable_maintenance_mode() {
     fi
 }
 
-# Function to handle script exit by disabling maintenance mode
-cleanup() {
-    disable_maintenance_mode
-}
-
-# Trap any exit signal and call cleanup to ensure maintenance mode is disabled
-trap cleanup EXIT
+# Trap any exit signal and call disable_maintenance_mode to ensure maintenance mode is disabled
+trap disable_maintenance_mode EXIT
 
 # Enable maintenance mode at the start of the backup
 enable_maintenance_mode
