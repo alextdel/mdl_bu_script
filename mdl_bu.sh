@@ -211,6 +211,10 @@ else
     exit 1
 fi
 
+# Disable maintenance mode after moodledata and database access backup completed
+log_message "Disabling maintenance mode"
+disable_maintenance_mode
+
 # Combine backups into a single tar.gz file
 combine_backups "$COMBINED_BACKUP_FILE"
 
