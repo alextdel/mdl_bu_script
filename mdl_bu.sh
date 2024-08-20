@@ -3,12 +3,13 @@
 # Load configuration variables from mdl_bu.conf
 CONFIG_FILE='mdl_bu.conf'
 
+# Check if configuration file exists
 if [ ! -f "$CONFIG_FILE" ]; then
     echo "Error: Configuration file $CONFIG_FILE not found. Please create it based on mdl_bu.conf.template."
     exit 1
 fi
 
-# The 'source' command reads and executes the content of the specified file
+# Load the configuration file to set environment variables
 source "$CONFIG_FILE"
 
 # Function to check if a variable is set and valid
@@ -18,31 +19,37 @@ check_variable() {
     local var_type="$3"
     local valid_value="$4"
     
+    # Check if the variable is empty
     if [ -z "$var_value" ]; then
         echo "Error: $var_name is not set in $CONFIG_FILE. Please set it and try again."
         exit 1
     fi
 
+    # Validate the variable based on its expected type
     case "$var_type" in
         "integer")
+            # Ensure the variable is an integer
             if ! [[ "$var_value" =~ ^[0-9]+$ ]]; then
                 echo "Error: $var_name must be an integer. Current value: $var_value"
                 exit 1
             fi
             ;;
         "directory")
+            # Ensure the variable is a valid directory path
             if [ ! -d "$var_value" ]; then
                 echo "Error: $var_name is not a valid directory. Current value: $var_value"
                 exit 1
             fi
             ;;
         "file")
+            # Ensure the variable is a valid file path
             if [ ! -f "$var_value" ]; then
                 echo "Error: $var_name is not a valid file. Current value: $var_value"
                 exit 1
             fi
             ;;
         "text")
+            # Ensure the variable is not equal to a specific invalid value
             if [ "$var_value" == "$valid_value" ]; then
                 echo "Error: $var_name must not be '$valid_value'. Current value: $var_value"
                 exit 1
@@ -63,12 +70,7 @@ check_variable "MDL_CONFIG_PATH" "$MDL_CONFIG_PATH" "file"
 check_variable "MDL_WEB_DIR" "$MDL_WEB_DIR" "directory"
 check_variable "SERVICE_NAME" "$SERVICE_NAME" "text" "your_service_name"
 
-# Read Moodle config.php file and extract database credentials and Moodle data directory
-if [ ! -f "$MDL_CONFIG_PATH" ]; then
-    echo "Error: Moodle configuration file $MDL_CONFIG_PATH not found."
-    exit 1
-fi
-
+# Extract database credentials and Moodle data directory from Moodle's config.php
 DB_HOST=$(grep "\$CFG->dbhost" "$MDL_CONFIG_PATH" | awk -F"'" '{print $2}')
 DB_NAME=$(grep "\$CFG->dbname" "$MDL_CONFIG_PATH" | awk -F"'" '{print $2}')
 DB_USER=$(grep "\$CFG->dbuser" "$MDL_CONFIG_PATH" | awk -F"'" '{print $2}')
@@ -89,26 +91,29 @@ enable_maintenance_mode() {
 
 # Function to disable maintenance mode
 disable_maintenance_mode() {
+    # shellcheck disable=SC2317
     echo "Disabling maintenance mode..."
     if ! php "$MAINTENANCE_SCRIPT" --disable; then
+        # shellcheck disable=SC2317
         echo "Error: Failed to disable maintenance mode."
         log_message "Error: failed to disable maintenance mode\n- you may need to run this manually from the command line ie. php $MDL_WEB_DIR/admin/cli/maintenance.php --disable"
         exit 1
     fi
 }
 
-# Function to handle script exit
+# Function to handle script exit by disabling maintenance mode
 cleanup() {
+    # shellcheck disable=SC2317
     disable_maintenance_mode
 }
 
-# Trap any exit signal and call cleanup
+# Trap any exit signal and call cleanup to ensure maintenance mode is disabled
 trap cleanup EXIT
 
-# Enable maintenance mode
+# Enable maintenance mode at the start of the backup
 enable_maintenance_mode
 
-# Global log file
+# Global log file path with a timestamp
 LOG_FILE="$BACKUP_DIR/${SERVICE_NAME}_backup_log_$(date +'%Y%m%d%H%M%S').txt"
 
 # Attempt to create the log file
@@ -136,7 +141,7 @@ log_message() {
     echo "$log_msg"
 }
 
-# Function to verify that backup files are non-empty
+# Function to verify that a backup file is non-empty
 verify_backup() {
     local file="$1"
     if [ ! -s "$file" ]; then
@@ -147,37 +152,11 @@ verify_backup() {
     fi
 }
 
-# Function to copy newly created backups to BACKUP_STORE without overwriting existing files
-copy_new_backups() {
-    local source_dir="$1"
-    local target_dir="$2"
-
-    mkdir -p "$target_dir"
-
-    copy_file_if_new() {
-        local file="$1"
-        local target="$2"
-
-        if [ ! -f "$target" ]; then
-            cp "$file" "$target_dir"
-            verify_backup "$target_dir/$(basename "$file")"
-            log_message "Copied backup: $(basename "$file") to $target_dir"
-        fi
-    }
-
-    # Copy database backups
-    for backup_file in "$source_dir/${SERVICE_NAME}_db_backup_"*.sql; do
-        if [ -f "$backup_file" ]; then
-            copy_file_if_new "$backup_file" "$target_dir/$(basename "$backup_file")"
-        fi
-    done
-
-    # Copy moodledata backups
-    for backup_file in "$source_dir/${SERVICE_NAME}_moodledata_backup_"*.tar.gz; do
-        if [ -f "$backup_file" ]; then
-            copy_file_if_new "$backup_file" "$target_dir/$(basename "$backup_file")"
-        fi
-    done
+# Function to combine database and Moodledata backups into a single tar.gz file
+combine_backups() {
+    local combined_file="$1"
+    tar -czf "$combined_file" -C "$BACKUP_DIR" "$(basename "$DB_BACKUP_FILE")" "$(basename "$DATA_BACKUP_FILE")"
+    log_message "Combined backups into: $combined_file"
 }
 
 # Function to check if BACKUP_STORE is accessible
@@ -190,7 +169,7 @@ check_backup_store_accessibility() {
     fi
 }
 
-# Check if BACKUP_STORE is accessible
+# Check if BACKUP_STORE is accessible before proceeding
 check_backup_store_accessibility
 
 # Create the backup directory if it doesn't exist
@@ -199,18 +178,21 @@ if ! mkdir -p "$BACKUP_DIR"; then
     exit 1
 fi
 
-# Define backup file name and path
+# Define backup file names and paths
 DB_BACKUP_FILE="$BACKUP_DIR/${SERVICE_NAME}_db_backup_$(date +%Y%m%d%H%M%S).sql"
 DATA_BACKUP_FILE="$BACKUP_DIR/${SERVICE_NAME}_moodledata_backup_$(date +%Y%m%d%H%M%S).tar.gz"
+COMBINED_BACKUP_FILE="$BACKUP_DIR/${SERVICE_NAME}_backup_$(date +%Y%m%d%H%M%S).tar.gz"
 
 # Perform the database backup using mysqldump
 if mysqldump -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" > "$DB_BACKUP_FILE" 2> "$DB_BACKUP_FILE.err"; then
     log_message "Database backup successful: $DB_BACKUP_FILE"
+    # Remove error file if empty
     if [ ! -s "$DB_BACKUP_FILE.err" ]; then
         rm "$DB_BACKUP_FILE.err"
     fi
 else
     log_message "Database backup failed"
+    # Handle access denied error separately
     if grep -q "Access denied for user" "$DB_BACKUP_FILE.err"; then
         log_message "Error: Access denied for user '$DB_USER' to database '$DB_NAME'."
         log_message "Please ensure the MySQL user has the necessary permissions, especially LOCK TABLES, and try again."
@@ -229,43 +211,34 @@ else
     exit 1
 fi
 
-# Verify that the database backup file is non-empty
+# Verify the created backup files are non-empty
 verify_backup "$DB_BACKUP_FILE"
-
-# Verify that the moodledata backup file is non-empty
 verify_backup "$DATA_BACKUP_FILE"
 
-# Copy newly created backups to BACKUP_STORE and verify the transfer
-copy_new_backups "$BACKUP_DIR" "$BACKUP_STORE"
+# Combine the database and moodledata backups into a single tar.gz file
+combine_backups "$COMBINED_BACKUP_FILE"
 
-# Rotate old backups in the BACKUP_STORE, keeping only the latest $NUM_BACKUPS_TO_KEEP backups
-rotate_old_backups() {
-    local backup_dir="$1"
-    local num_to_keep="$2"
+# Verify the combined backup file is non-empty
+verify_backup "$COMBINED_BACKUP_FILE"
 
-    # Find and delete old backups, keeping only the latest $NUM_BACKUPS_TO_KEEP backups
-    for backup_type in db_backup moodledata_backup; do
-        # Find and list backup files, sorting by modification time and excluding the most recent ones
-        local backups
-        backups=$(find "$backup_dir" -maxdepth 1 -name "${SERVICE_NAME}_${backup_type}_*" -print0 | xargs -0 ls -1t | tail -n +$((num_to_keep + 1)))
-
-        if [ -n "$backups" ]; then
-            # Remove old backups
-            echo "$backups" | xargs rm -f
-            log_message "Old backups removed for $backup_type. Retained $num_to_keep backups."
-        fi
-    done
-}
-
-# Rotate old backups in the BACKUP_STORE
-rotate_old_backups "$BACKUP_STORE" "$NUM_BACKUPS_TO_KEEP"
-
-# Clear local backup directory after successful transfer
-if rm -rf "${BACKUP_DIR:?}/*"; then
-    log_message "Local backup directory cleared."
+# Copy the combined backup to the off-server backup store
+if cp "$COMBINED_BACKUP_FILE" "$BACKUP_STORE"; then
+    log_message "Combined backup successfully copied to backup store: $BACKUP_STORE"
 else
-    log_message "Error: Failed to clear local backup directory."
+    log_message "Failed to copy combined backup to backup store."
     exit 1
 fi
 
+# Remove old backups beyond the retention count
+log_message "Rotating backups, keeping only the last $NUM_BACKUPS_TO_KEEP backups."
+cd "$BACKUP_STORE" || exit 1
+find . -maxdepth 1 -name "${SERVICE_NAME}_backup_*.tar.gz" -print0 | \
+    sort -z | \
+    tail -z -n +$((NUM_BACKUPS_TO_KEEP + 1)) | \
+    xargs -0 rm -f --
+
+# Log the successful completion of the backup process
 log_message "Backup process completed successfully."
+
+# Exit the script cleanly, triggering the cleanup function to disable maintenance mode
+exit 0
