@@ -25,20 +25,33 @@ The script performs the following main tasks:
 
 ## Quick Start Guide
 
-### 1. Clone the Repository
+*Note:* This backup script and associated files usually reside in the same parent directory as the web-filed directory 
+ ```
+ ___public_html
+  |_mdl_backup
+         |_mdl_bu_files
+         |_mdl_bu_script
+               |_mdl_bu.conf
+               |_mdl_bu.sh
+               |_mdl_bu.conf.template
+               |_readme.md
+ ```
+   
+
+### 1. Create/Navigate to the Script Directory
+
+Change to the directory containing the script (eg. path/mdl_bu_script/):
+
+```bash
+cd <script-directory>
+```
+
+### 2. Clone the Repository
 
 Clone the repository containing the `mdl_bu.sh` script to your local environment:
 
 ```bash
 git clone <repository-url>
-```
-
-### 2. Navigate to the Script Directory
-
-Change to the directory containing the script:
-
-```bash
-cd <script-directory>
 ```
 
 ### 3. Edit the Configuration File
