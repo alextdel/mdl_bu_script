@@ -82,7 +82,7 @@ MAINTENANCE_SCRIPT="${MDL_WEB_DIR}/admin/cli/maintenance.php"
 
 # Function to enable maintenance mode
 enable_maintenance_mode() {
-    echo "Enabling maintenance mode..."
+    log_message "Enabling maintenance mode..."
     if ! php "$MAINTENANCE_SCRIPT" --enable; then
         log_message "Error: failed to enable maintenance mode."
         exit 1
@@ -91,11 +91,9 @@ enable_maintenance_mode() {
 
 # Function to disable maintenance mode
 disable_maintenance_mode() {
-    # shellcheck disable=SC2317
-    echo "Disabling maintenance mode..."
+    log_message "Disabling maintenance mode..."
     if ! php "$MAINTENANCE_SCRIPT" --disable; then
-        # shellcheck disable=SC2317
-        echo "Error: Failed to disable maintenance mode."
+        log_message "Error: Failed to disable maintenance mode."
         log_message "Error: failed to disable maintenance mode\n- you may need to run this manually from the command line ie. php $MDL_WEB_DIR/admin/cli/maintenance.php --disable"
         exit 1
     fi
@@ -103,7 +101,6 @@ disable_maintenance_mode() {
 
 # Function to handle script exit by disabling maintenance mode
 cleanup() {
-    # shellcheck disable=SC2317
     disable_maintenance_mode
 }
 
@@ -118,7 +115,7 @@ LOG_FILE="$BACKUP_DIR/${SERVICE_NAME}_backup_log_$(date +'%Y%m%d%H%M%S').txt"
 
 # Attempt to create the log file
 if ! touch "$LOG_FILE"; then
-    echo "Error: Unable to create log file at $LOG_FILE"
+    log_message "Error: Unable to create log file at $LOG_FILE"
     exit 1
 fi
 
@@ -155,6 +152,7 @@ verify_backup() {
 # Function to combine database and Moodledata backups into a single tar.gz file
 combine_backups() {
     local combined_file="$1"
+    log_message "Combining database and Moodledata backups into: $combined_file"
     tar -czf "$combined_file" -C "$BACKUP_DIR" "$(basename "$DB_BACKUP_FILE")" "$(basename "$DATA_BACKUP_FILE")"
     log_message "Combined backups into: $combined_file"
 }
@@ -184,6 +182,7 @@ DATA_BACKUP_FILE="$BACKUP_DIR/${SERVICE_NAME}_moodledata_backup_$(date +%Y%m%d%H
 COMBINED_BACKUP_FILE="$BACKUP_DIR/${SERVICE_NAME}_backup_$(date +%Y%m%d%H%M%S).tar.gz"
 
 # Perform the database backup using mysqldump
+log_message "Starting database backup..."
 if mysqldump -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" > "$DB_BACKUP_FILE" 2> "$DB_BACKUP_FILE.err"; then
     log_message "Database backup successful: $DB_BACKUP_FILE"
     # Remove error file if empty
@@ -204,6 +203,7 @@ else
 fi
 
 # Perform the moodledata backup using tar and gzip
+log_message "Starting Moodledata backup..."
 if tar -czf "$DATA_BACKUP_FILE" -C "$(dirname "$MOODLE_DATA")" "$(basename "$MOODLE_DATA")"; then
     log_message "Moodledata backup successful: $DATA_BACKUP_FILE"
 else
@@ -211,34 +211,24 @@ else
     exit 1
 fi
 
-# Verify the created backup files are non-empty
-verify_backup "$DB_BACKUP_FILE"
-verify_backup "$DATA_BACKUP_FILE"
-
-# Combine the database and moodledata backups into a single tar.gz file
+# Combine backups into a single tar.gz file
 combine_backups "$COMBINED_BACKUP_FILE"
 
-# Verify the combined backup file is non-empty
+# Verify the combined backup file
 verify_backup "$COMBINED_BACKUP_FILE"
 
-# Copy the combined backup to the off-server backup store
+# Transfer combined backup to the backup store
+log_message "Transferring combined backup file to backup store..."
 if cp "$COMBINED_BACKUP_FILE" "$BACKUP_STORE"; then
-    log_message "Combined backup successfully copied to backup store: $BACKUP_STORE"
+    log_message "Transfer successful: $COMBINED_BACKUP_FILE to $BACKUP_STORE"
+    # Remove the local backup files if transfer was successful
+    rm "$DB_BACKUP_FILE" "$DATA_BACKUP_FILE" "$COMBINED_BACKUP_FILE"
+    log_message "Local backup files removed after successful transfer."
 else
-    log_message "Failed to copy combined backup to backup store."
+    log_message "Transfer failed: $COMBINED_BACKUP_FILE to $BACKUP_STORE"
+    log_message "Local backup files retained for manual transfer."
     exit 1
 fi
 
-# Remove old backups beyond the retention count
-log_message "Rotating backups, keeping only the last $NUM_BACKUPS_TO_KEEP backups."
-cd "$BACKUP_STORE" || exit 1
-find . -maxdepth 1 -name "${SERVICE_NAME}_backup_*.tar.gz" -print0 | \
-    sort -z | \
-    tail -z -n +$((NUM_BACKUPS_TO_KEEP + 1)) | \
-    xargs -0 rm -f --
-
-# Log the successful completion of the backup process
-log_message "Backup process completed successfully."
-
-# Exit the script cleanly, triggering the cleanup function to disable maintenance mode
-exit 0
+# End of script
+log_message "Backup script completed successfully."
