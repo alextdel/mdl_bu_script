@@ -1,5 +1,14 @@
 # mdl_bu.conf
 
+################################################################# 
+# This is a template file, it must be edited to include the
+# relevant values and saved as mdl_bu.conf
+#  Installation steps:
+#     1. Open this file 
+#     2. Enter the paths, number of backups & service name below
+#     3. Save this file as mdl_bu.conf
+#################################################################
+
 #Path to Moodle web directory
 MDL_WEB_DIR='/path/to/moodle/web_files'
 
