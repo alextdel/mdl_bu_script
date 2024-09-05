@@ -4,6 +4,9 @@
 # dirname ensures working dir is correct to ensure .conf is found
 CONFIG_FILE="$(dirname "$0")/mdl_bu.conf"
 
+# Initialise a flag to tracke the maintenance mode state
+MAINTENANCE_ENABLED=false
+
 
 # Check if configuration file exists
 if [ ! -f "$CONFIG_FILE" ]; then
@@ -85,20 +88,29 @@ MAINTENANCE_SCRIPT="${MDL_WEB_DIR}/admin/cli/maintenance.php"
 
 # Function to enable maintenance mode
 enable_maintenance_mode() {
-    log_message "Enabling maintenance mode..."
-    if ! php "$MAINTENANCE_SCRIPT" --enable; then
+    if php "$MAINTENANCE_SCRIPT" --enable; then
+        MAINTENANCE_ENABLED=true
+        log_message "Enabling maintenance mode..."
+        
+    else
         log_message "Error: failed to enable maintenance mode."
         exit 1
     fi
 }
 
-# Function to disable maintenance mode
+# Function to disable maintenance mode only if it was enabled
 disable_maintenance_mode() {
-    log_message "Disabling maintenance mode..."
-    if ! php "$MAINTENANCE_SCRIPT" --disable; then
-        log_message "Error: Failed to disable maintenance mode."
-        log_message "Error: failed to disable maintenance mode\n- you may need to run this manually from the command line ie. php $MDL_WEB_DIR/admin/cli/maintenance.php --disable"
-        exit 1
+    if [ "$MAINTENANCE_ENABLED" = true ]; then
+        log_message "Disabling maintenance mode..."
+        if php "$MAINTENANCE_SCRIPT" --disable; then
+            MAINTENANCE_ENABLED=false
+        else
+            log_message "Error: Failed to disable maintenance mode."
+            log_message "You may need to run this manually: php $MAINTENANCE_SCRIPT --disable"
+            exit 1
+        fi
+    else
+        log_message "Maintenance mode is already disabled, skipping."
     fi
 }
 
@@ -224,6 +236,7 @@ log_message "Transferring combined backup file to backup store..."
 if cp "$COMBINED_BACKUP_FILE" "$BACKUP_STORE"; then
     log_message "Transfer successful: $COMBINED_BACKUP_FILE to $BACKUP_STORE"
     # Remove the local backup files if transfer was successful
+    log_message "Removing local backup files: $DB_BACKUP_FILE, $DATA_BACKUP_FILE, $COMBINED_BACKUP_FILE"
     rm "$DB_BACKUP_FILE" "$DATA_BACKUP_FILE" "$COMBINED_BACKUP_FILE"
     log_message "Local backup files removed after successful transfer."
 else
@@ -231,6 +244,22 @@ else
     log_message "Local backup files retained for manual transfer."
     exit 1
 fi
+
+# Function to clean up old log files (>7 days) with error trapping
+log_cleanup() {
+    log_message "Starting log cleanup. Retaining logs based on the defined criteria."
+
+    # Attempt to find and remove old log files, trapping errors
+    if ! find "$BACKUP_DIR" -name "${SERVICE_NAME}_backup_log_*.txt" -mtime +7 -exec rm {} \;; then
+        log_message "Error: Log cleanup failed. Unable to remove old log files."
+    else
+        log_message "Log cleanup completed successfully."
+    fi
+}
+
+# Call the log cleanup function
+log_cleanup
+
 
 # End of script
 log_message "Backup script completed successfully."
