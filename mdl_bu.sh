@@ -1,7 +1,9 @@
 #!/bin/bash
 
 # Load configuration variables from mdl_bu.conf
-CONFIG_FILE='mdl_bu.conf'
+# dirname ensures working dir is correct to ensure .conf is found
+CONFIG_FILE="$(dirname "$0")/mdl_bu.conf"
+
 
 # Check if configuration file exists
 if [ ! -f "$CONFIG_FILE" ]; then
@@ -10,6 +12,7 @@ if [ ! -f "$CONFIG_FILE" ]; then
 fi
 
 # Load the configuration file to set environment variables
+# shellcheck disable=SC1090
 source "$CONFIG_FILE"
 
 # Function to check if a variable is set and valid
