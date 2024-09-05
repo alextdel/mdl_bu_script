@@ -236,7 +236,7 @@ log_message "Transferring combined backup file to backup store..."
 if cp "$COMBINED_BACKUP_FILE" "$BACKUP_STORE"; then
     log_message "Transfer successful: $COMBINED_BACKUP_FILE to $BACKUP_STORE"
     # Remove the local backup files if transfer was successful
-    log_message "Removing local backup files: $DB_BACKUP_FILE, $DATA_BACKUP_FILE, $COMBINED_BACKUP_FILE"
+    log_message "Removing local backup files:\n$DB_BACKUP_FILE\n$DATA_BACKUP_FILE\n$COMBINED_BACKUP_FILE"
     rm "$DB_BACKUP_FILE" "$DATA_BACKUP_FILE" "$COMBINED_BACKUP_FILE"
     log_message "Local backup files removed after successful transfer."
 else
