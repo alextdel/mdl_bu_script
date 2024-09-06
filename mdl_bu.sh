@@ -183,6 +183,22 @@ disable_maintenance_mode() {
     fi
 }
 
+# Cleanup old backups in the BACKUP_STORE if they exceed the defined number
+cleanup_old_backups_in_store() {
+    # Check if BACKUP_STORE exists
+    if [ ! -d "$BACKUP_STORE" ]; then
+        log_message "Error: Backup store $BACKUP_STORE does not exist."
+        return 1
+    fi
+
+    # Find backup files in the BACKUP_STORE, sort them by modification time, and delete older ones while keeping the most recent NUM_BACKUPS_TO_KEEP
+    log_message "Cleaning up old backups in BACKUP_STORE, keeping only the latest $NUM_BACKUPS_TO_KEEP backups."
+    find "$BACKUP_STORE" -name "${SERVICE_NAME}_backup_*.tar.gz" -printf "%T+ %p\n" | sort | head -n -"$NUM_BACKUPS_TO_KEEP" | cut -d' ' -f2- | while read -r old_backup; do
+        log_message "Deleting old backup from BACKUP_STORE: $old_backup"
+        rm -f "$old_backup"
+    done
+}
+
 # Trap any exit signal and call disable_maintenance_mode to ensure maintenance mode is disabled
 trap 'if [ "$MAINTENANCE_ENABLED" = true ]; then disable_maintenance_mode; fi' EXIT
 
@@ -247,6 +263,10 @@ verify_backup "$COMBINED_BACKUP_FILE"
 log_message "Transferring combined backup file to backup store..."
 if cp "$COMBINED_BACKUP_FILE" "$BACKUP_STORE"; then
     log_message "Transfer successful: $COMBINED_BACKUP_FILE to $BACKUP_STORE"
+
+    # Clean up old backups in BACKUP_STORE
+    cleanup_old_backups_in_store
+    
     # Remove the local backup files if transfer was successful
     log_message "Removing local backup files:\n$DB_BACKUP_FILE\n$DATA_BACKUP_FILE\n$COMBINED_BACKUP_FILE"
     rm "$DB_BACKUP_FILE" "$DATA_BACKUP_FILE" "$COMBINED_BACKUP_FILE"
