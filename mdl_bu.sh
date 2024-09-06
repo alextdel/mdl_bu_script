@@ -4,16 +4,6 @@
 # Global log file path with a timestamp
 LOG_FILE="$BACKUP_DIR/${SERVICE_NAME}_backup_log_$(date +'%Y%m%d%H%M%S').txt"
 
-# Attempt to create the log file
-if ! touch "$LOG_FILE"; then
-    log_message "Error: Unable to create log file at $LOG_FILE"
-    exit 1
-fi
-
-# Redirect stdout and stderr to the log file
-exec > >(tee -i "$LOG_FILE")
-exec 2>&1
-
 # Function to log messages to a specified log file
 log_message() {
     local log_msg="$1"
@@ -28,6 +18,16 @@ log_message() {
     echo "$(date +'%Y-%m-%d %H:%M:%S') - $log_msg" >> "$LOG_FILE"
     echo "$log_msg"
 }
+
+# Attempt to create the log file
+if ! touch "$LOG_FILE"; then
+    log_message "Error: Unable to create log file at $LOG_FILE"
+    exit 1
+fi
+
+# Redirect stdout and stderr to the log file
+exec > >(tee -i "$LOG_FILE")
+exec 2>&1
 
 # Function to check if a variable is set and valid
 check_variable() {
