@@ -1,22 +1,33 @@
 #!/bin/bash
 
-# Load configuration variables from mdl_bu.conf
-# dirname ensures working dir is correct to ensure .conf is found
-CONFIG_FILE="$(dirname "$0")/mdl_bu.conf"
+# Set up logging functionality
+# Global log file path with a timestamp
+LOG_FILE="$BACKUP_DIR/${SERVICE_NAME}_backup_log_$(date +'%Y%m%d%H%M%S').txt"
 
-# Initialise a flag to tracke the maintenance mode state
-MAINTENANCE_ENABLED=false
-
-
-# Check if configuration file exists
-if [ ! -f "$CONFIG_FILE" ]; then
-    echo "Error: Configuration file $CONFIG_FILE not found. Please create it based on mdl_bu.conf.template."
+# Attempt to create the log file
+if ! touch "$LOG_FILE"; then
+    log_message "Error: Unable to create log file at $LOG_FILE"
     exit 1
 fi
 
-# Load the configuration file to set environment variables
-# shellcheck disable=SC1090
-source "$CONFIG_FILE"
+# Redirect stdout and stderr to the log file
+exec > >(tee -i "$LOG_FILE")
+exec 2>&1
+
+# Function to log messages to a specified log file
+log_message() {
+    local log_msg="$1"
+    
+    # Check if LOG_FILE is writable
+    if [ ! -w "$LOG_FILE" ]; then
+        echo "Error: Log file $LOG_FILE is not writable. Outputting message to stderr."
+        echo "$(date +'%Y-%m-%d %H:%M:%S') - $log_msg" >&2
+        return
+    fi
+
+    echo "$(date +'%Y-%m-%d %H:%M:%S') - $log_msg" >> "$LOG_FILE"
+    echo "$log_msg"
+}
 
 # Function to check if a variable is set and valid
 check_variable() {
@@ -27,7 +38,7 @@ check_variable() {
     
     # Check if the variable is empty
     if [ -z "$var_value" ]; then
-        echo "Error: $var_name is not set in $CONFIG_FILE. Please set it and try again."
+        log_message "Error: $var_name is not set in $CONFIG_FILE. Please set it and try again."
         exit 1
     fi
 
@@ -36,37 +47,95 @@ check_variable() {
         "integer")
             # Ensure the variable is an integer
             if ! [[ "$var_value" =~ ^[0-9]+$ ]]; then
-                echo "Error: $var_name must be an integer. Current value: $var_value"
+                log_message "Error: $var_name must be an integer. Current value: $var_value"
                 exit 1
             fi
             ;;
         "directory")
             # Ensure the variable is a valid directory path
             if [ ! -d "$var_value" ]; then
-                echo "Error: $var_name is not a valid directory. Current value: $var_value"
+                log_message "Error: $var_name is not a valid directory. Current value: $var_value"
                 exit 1
             fi
             ;;
         "file")
             # Ensure the variable is a valid file path
             if [ ! -f "$var_value" ]; then
-                echo "Error: $var_name is not a valid file. Current value: $var_value"
+                log_message "Error: $var_name is not a valid file. Current value: $var_value"
                 exit 1
             fi
             ;;
         "text")
             # Ensure the variable is not equal to a specific invalid value
             if [ "$var_value" == "$valid_value" ]; then
-                echo "Error: $var_name must not be '$valid_value'. Current value: $var_value"
+                log_message "Error: $var_name must not be '$valid_value'. Current value: $var_value"
                 exit 1
             fi
             ;;
         *)
-            echo "Error: Unknown type $var_type for $var_name."
+            log_message "Error: Unknown type $var_type for $var_name."
             exit 1
             ;;
     esac
 }
+
+# Function to verify that a backup file is non-empty
+verify_backup() {
+    local file="$1"
+    if [ ! -s "$file" ]; then
+        log_message "Error: Backup file $file is empty or not created correctly."
+        exit 1
+    else
+        log_message "Backup file $file is verified as created correctly."
+    fi
+}
+
+# Function to combine database and Moodledata backups into a single tar.gz file
+combine_backups() {
+    local combined_file="$1"
+    log_message "Combining database and Moodledata backups into: $combined_file"
+    tar -czf "$combined_file" -C "$BACKUP_DIR" "$(basename "$DB_BACKUP_FILE")" "$(basename "$DATA_BACKUP_FILE")"
+    log_message "Combined backups into: $combined_file"
+}
+
+# Function to check if BACKUP_STORE is accessible
+check_backup_store_accessibility() {
+    if [ ! -d "$BACKUP_STORE" ] || [ ! -w "$BACKUP_STORE" ]; then
+        log_message "Backup has completed with errors. Backup files created in BACKUP_DIR location."
+        log_message "NOTICE: BACKUP_STORE is inaccessible and backup files should be manually transferred."
+        log_message "Check BACKUP_STORE accessibility before running this again."
+        exit 1
+    fi
+}
+
+# Function to clean up old log files (>7 days) with error trapping
+log_cleanup() {
+    log_message "Starting log cleanup. Retaining logs based on the defined criteria."
+
+    # Attempt to find and remove old log files, trapping errors
+    if ! find "$BACKUP_DIR" -name "${SERVICE_NAME}_backup_log_*.txt" -mtime +7 -exec rm {} \;; then
+        log_message "Error: Log cleanup failed. Unable to remove old log files."
+    else
+        log_message "Log cleanup completed successfully."
+    fi
+}
+
+# Load configuration variables from mdl_bu.conf
+# dirname ensures working dir is correct to ensure .conf is found
+CONFIG_FILE="$(dirname "$0")/mdl_bu.conf"
+
+# Initialise a flag to tracke the maintenance mode state
+MAINTENANCE_ENABLED=false
+
+# Check if configuration file exists
+if [ ! -f "$CONFIG_FILE" ]; then
+    log_message "Error: Configuration file $CONFIG_FILE not found. Please create it based on mdl_bu.conf.template."
+    exit 1
+fi
+
+# Load the configuration file to set environment variables
+# shellcheck disable=SC1090
+source "$CONFIG_FILE"
 
 # Check if required variables are set and valid
 check_variable "NUM_BACKUPS_TO_KEEP" "$NUM_BACKUPS_TO_KEEP" "integer"
@@ -115,67 +184,10 @@ disable_maintenance_mode() {
 }
 
 # Trap any exit signal and call disable_maintenance_mode to ensure maintenance mode is disabled
-trap disable_maintenance_mode EXIT
+trap 'if [ "$MAINTENANCE_ENABLED" = true ]; then disable_maintenance_mode; fi' EXIT
 
 # Enable maintenance mode at the start of the backup
 enable_maintenance_mode
-
-# Global log file path with a timestamp
-LOG_FILE="$BACKUP_DIR/${SERVICE_NAME}_backup_log_$(date +'%Y%m%d%H%M%S').txt"
-
-# Attempt to create the log file
-if ! touch "$LOG_FILE"; then
-    log_message "Error: Unable to create log file at $LOG_FILE"
-    exit 1
-fi
-
-# Redirect stdout and stderr to the log file
-exec > >(tee -i "$LOG_FILE")
-exec 2>&1
-
-# Function to log messages to a specified log file
-log_message() {
-    local log_msg="$1"
-    
-    # Check if LOG_FILE is writable
-    if [ ! -w "$LOG_FILE" ]; then
-        echo "Error: Log file $LOG_FILE is not writable. Outputting message to stderr."
-        echo "$(date +'%Y-%m-%d %H:%M:%S') - $log_msg" >&2
-        return
-    fi
-
-    echo "$(date +'%Y-%m-%d %H:%M:%S') - $log_msg" >> "$LOG_FILE"
-    echo "$log_msg"
-}
-
-# Function to verify that a backup file is non-empty
-verify_backup() {
-    local file="$1"
-    if [ ! -s "$file" ]; then
-        log_message "Error: Backup file $file is empty or not created correctly."
-        exit 1
-    else
-        log_message "Backup file $file is verified as created correctly."
-    fi
-}
-
-# Function to combine database and Moodledata backups into a single tar.gz file
-combine_backups() {
-    local combined_file="$1"
-    log_message "Combining database and Moodledata backups into: $combined_file"
-    tar -czf "$combined_file" -C "$BACKUP_DIR" "$(basename "$DB_BACKUP_FILE")" "$(basename "$DATA_BACKUP_FILE")"
-    log_message "Combined backups into: $combined_file"
-}
-
-# Function to check if BACKUP_STORE is accessible
-check_backup_store_accessibility() {
-    if [ ! -d "$BACKUP_STORE" ] || [ ! -w "$BACKUP_STORE" ]; then
-        log_message "Backup has completed with errors. Backup files created in BACKUP_DIR location."
-        log_message "NOTICE: BACKUP_STORE is inaccessible and backup files should be manually transferred."
-        log_message "Check BACKUP_STORE accessibility before running this again."
-        exit 1
-    fi
-}
 
 # Check if BACKUP_STORE is accessible before proceeding
 check_backup_store_accessibility
@@ -245,21 +257,8 @@ else
     exit 1
 fi
 
-# Function to clean up old log files (>7 days) with error trapping
-log_cleanup() {
-    log_message "Starting log cleanup. Retaining logs based on the defined criteria."
-
-    # Attempt to find and remove old log files, trapping errors
-    if ! find "$BACKUP_DIR" -name "${SERVICE_NAME}_backup_log_*.txt" -mtime +7 -exec rm {} \;; then
-        log_message "Error: Log cleanup failed. Unable to remove old log files."
-    else
-        log_message "Log cleanup completed successfully."
-    fi
-}
-
 # Call the log cleanup function
 log_cleanup
-
 
 # End of script
 log_message "Backup script completed successfully."
