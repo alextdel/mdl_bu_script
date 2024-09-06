@@ -1,5 +1,22 @@
 #!/bin/bash
 
+# Load configuration variables from mdl_bu.conf
+# dirname ensures working dir is correct to ensure .conf is found
+CONFIG_FILE="$(dirname "$0")/mdl_bu.conf"
+
+# Initialise a flag to tracke the maintenance mode state
+MAINTENANCE_ENABLED=false
+
+# Check if configuration file exists
+if [ ! -f "$CONFIG_FILE" ]; then
+    echo "Error: Configuration file $CONFIG_FILE not found. Please create it based on mdl_bu.conf.template."
+    exit 1
+fi
+
+# Load the configuration file to set environment variables
+# shellcheck disable=SC1090
+source "$CONFIG_FILE"
+
 # Set up logging functionality
 # Global log file path with a timestamp
 LOG_FILE="$BACKUP_DIR/${SERVICE_NAME}_backup_log_$(date +'%Y%m%d%H%M%S').txt"
@@ -119,23 +136,6 @@ log_cleanup() {
         log_message "Log cleanup completed successfully."
     fi
 }
-
-# Load configuration variables from mdl_bu.conf
-# dirname ensures working dir is correct to ensure .conf is found
-CONFIG_FILE="$(dirname "$0")/mdl_bu.conf"
-
-# Initialise a flag to tracke the maintenance mode state
-MAINTENANCE_ENABLED=false
-
-# Check if configuration file exists
-if [ ! -f "$CONFIG_FILE" ]; then
-    log_message "Error: Configuration file $CONFIG_FILE not found. Please create it based on mdl_bu.conf.template."
-    exit 1
-fi
-
-# Load the configuration file to set environment variables
-# shellcheck disable=SC1090
-source "$CONFIG_FILE"
 
 # Check if required variables are set and valid
 check_variable "NUM_BACKUPS_TO_KEEP" "$NUM_BACKUPS_TO_KEEP" "integer"
